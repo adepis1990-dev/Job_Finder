@@ -1,0 +1,23 @@
+{
+  "name": "Scraper_App",
+  "version": "1.0.0",
+  "description": "Multi-source scraper: Google Maps, LinkedIn, BestJobs",
+  "main": "index.js",
+  "scripts": {
+    "scrape:maps": "playwright test tests/maps_scraper.spec.ts",
+    "scrape:linkedin": "playwright test tests/linkedin_scraper.spec.ts",
+    "scrape:bestjobs": "playwright test tests/bestjobs_scraper.spec.ts",
+    "scrape:ejobs": "playwright test tests/ejobs_scraper.spec.ts",
+    "scrape:hipo": "playwright test tests/hipo_scraper.spec.ts",
+    "scrape:all": "playwright test tests/maps_scraper.spec.ts && playwright test tests/linkedin_scraper.spec.ts && playwright test tests/bestjobs_scraper.spec.ts && playwright test tests/ejobs_scraper.spec.ts && playwright test tests/hipo_scraper.spec.ts",
+    "merge": "playwright test tests/merge_results.spec.ts",
+    "scrape": "npm run scrape:all && npm run merge"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.0"
+  }
+}

@@ -1,0 +1,35 @@
+# Dependencies
+**/node_modules/
+
+# Python
+**/venv/
+**/venv_linux/
+**/__pycache__/
+*.pyc
+
+# Environment secrets
+**/.env
+
+# Build output
+**/dist/
+
+# Playwright
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+
+# Scraper results (generated data)
+Scraper_App/rezultate_*.json
+Scraper_App/firme_iasi.*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

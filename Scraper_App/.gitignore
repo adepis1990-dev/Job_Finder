@@ -1,0 +1,13 @@
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Scraper results (generated data, re-run scrapers to regenerate)
+rezultate_*.json
+firme_iasi.csv
+firme_iasi.json
