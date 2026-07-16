@@ -7,7 +7,7 @@ import ContactPage from './ContactPage'
 import EmailPreview from './EmailPreview'
 import ScraperPanel from './ScraperPanel'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const THEMES = [
   { id:'classic',  label:'Classic',  accent:'#1a1a2e', layout:'single-col' },

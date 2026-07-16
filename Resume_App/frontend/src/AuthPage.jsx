@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export default function AuthPage({ onAuth }) {
   const [username, setUsername] = useState('user')
