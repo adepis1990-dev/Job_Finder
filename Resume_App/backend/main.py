@@ -1297,6 +1297,12 @@ SCRAPERS = {
                 "type": "text",
                 "default": "Iasi",
             },
+            "keywords": {
+                "label": "Keywords",
+                "type": "text",
+                "default": "",
+                "placeholder": "e.g. React, Python, remote",
+            },
         },
     },
     "linkedin": {
@@ -1332,6 +1338,12 @@ SCRAPERS = {
                 "type": "text",
                 "default": "Iasi",
             },
+            "keywords": {
+                "label": "Keywords",
+                "type": "text",
+                "default": "",
+                "placeholder": "e.g. React, Python, remote",
+            },
         },
     },
     "bestjobs": {
@@ -1366,6 +1378,12 @@ SCRAPERS = {
                 "label": "City",
                 "type": "text",
                 "default": "Iasi",
+            },
+            "keywords": {
+                "label": "Keywords",
+                "type": "text",
+                "default": "",
+                "placeholder": "e.g. React, Python, remote",
             },
         },
     },
@@ -1404,6 +1422,12 @@ SCRAPERS = {
                 "type": "text",
                 "default": "iasi",
             },
+            "keywords": {
+                "label": "Keywords",
+                "type": "text",
+                "default": "",
+                "placeholder": "e.g. React, Python, remote",
+            },
         },
     },
     "hipo": {
@@ -1440,6 +1464,12 @@ SCRAPERS = {
                 "label": "City",
                 "type": "text",
                 "default": "Iasi",
+            },
+            "keywords": {
+                "label": "Keywords",
+                "type": "text",
+                "default": "",
+                "placeholder": "e.g. React, Python, remote",
             },
         },
     },
@@ -1607,7 +1637,7 @@ def run_merge():
 
 
 @app.post("/scrape/{scraper_name}")
-def run_scraper(scraper_name: str, category: str = None, max_results: int = None, location: str = None):
+def run_scraper(scraper_name: str, category: str = None, max_results: int = None, location: str = None, keywords: str = None):
     """
     Trigger a scraper by name. Runs the Playwright test in headed mode.
     For eJobs, accepts optional category, max_results, and location params.
@@ -1638,6 +1668,8 @@ def run_scraper(scraper_name: str, category: str = None, max_results: int = None
         env["SCRAPER_CATEGORY"] = category
     if location:
         env["SCRAPER_LOCATION"] = location
+    if keywords:
+        env["SCRAPER_KEYWORDS"] = keywords
     # Also set scraper-specific env vars
     if scraper_name == "ejobs":
         if category:
@@ -1646,6 +1678,8 @@ def run_scraper(scraper_name: str, category: str = None, max_results: int = None
             env["EJOBS_MAX"] = str(max_results)
         if location:
             env["EJOBS_LOCATION"] = location
+        if keywords:
+            env["EJOBS_KEYWORDS"] = keywords
     elif scraper_name == "hipo":
         if category:
             env["HIPO_CATEGORY"] = category
@@ -1653,6 +1687,8 @@ def run_scraper(scraper_name: str, category: str = None, max_results: int = None
             env["HIPO_MAX"] = str(max_results)
         if location:
             env["HIPO_LOCATION"] = location
+        if keywords:
+            env["HIPO_KEYWORDS"] = keywords
 
     # Run scraper as subprocess
     cmd = cfg["command"]

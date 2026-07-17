@@ -31,10 +31,15 @@ test('Scrape eJobs', async ({ page, context }) => {
   await page.route('mailto:**', route => route.abort());
 
   const url = `https://www.ejobs.ro/locuri-de-munca/${category}/${location}`;
+  const keywords = process.env.SCRAPER_KEYWORDS || process.env.EJOBS_KEYWORDS || '';
   console.log(`Navigam pe eJobs: ${url}`);
-  console.log(`Categorie: ${category} | Locatie: ${location} | Max: ${maxResults}`);
+  console.log(`Categorie: ${category} | Locatie: ${location} | Max: ${maxResults} | Keywords: ${keywords || '(none)'}`);
 
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+  // If keywords provided, use search URL instead of category URL
+  const finalUrl = keywords
+    ? `https://www.ejobs.ro/locuri-de-munca?q=${encodeURIComponent(keywords)}&location=${encodeURIComponent(location)}`
+    : url;
+  await page.goto(finalUrl, { waitUntil: 'networkidle', timeout: 30000 });
 
   // Remove cookie overlay
   await page.evaluate(() => {

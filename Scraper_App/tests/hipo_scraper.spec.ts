@@ -32,9 +32,13 @@ test('Scrape Hipo.ro', async ({ page, context }) => {
 
   const encodedCategory = encodeURIComponent(category);
   const encodedLocation = encodeURIComponent(location);
-  const url = `https://www.hipo.ro/locuri-de-munca/cautajob/${encodedCategory}/${encodedLocation}`;
+  const keywords = process.env.SCRAPER_KEYWORDS || process.env.HIPO_KEYWORDS || '';
+
+  // If keywords provided, use them as category search term
+  const searchCategory = keywords || category;
+  const url = `https://www.hipo.ro/locuri-de-munca/cautajob/${encodeURIComponent(searchCategory)}/${encodedLocation}`;
   console.log(`Navigam pe Hipo.ro: ${url}`);
-  console.log(`Categorie: ${category} | Locatie: ${location} | Max: ${maxResults}`);
+  console.log(`Categorie: ${searchCategory} | Locatie: ${location} | Max: ${maxResults} | Keywords: ${keywords || '(none)'}`);
 
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
 

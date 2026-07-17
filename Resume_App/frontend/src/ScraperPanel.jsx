@@ -57,6 +57,7 @@ export default function ScraperPanel({ onLoadRecipients }) {
         if (opts.category) params.set('category', opts.category)
         if (opts.max_results) params.set('max_results', String(opts.max_results))
         if (opts.location) params.set('location', opts.location)
+        if (opts.keywords) params.set('keywords', opts.keywords)
         url += `?${params}`
       }
       const res = await fetch(url, { method: 'POST' })
@@ -189,6 +190,7 @@ export default function ScraperPanel({ onLoadRecipients }) {
                     ) : (
                       <input type="text" style={s.optionInput}
                         value={opts[key] || opt.default}
+                        placeholder={opt.placeholder || ''}
                         onChange={e => setOpt(sc.id, key, e.target.value)} />
                     )}
                   </div>

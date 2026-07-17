@@ -20,7 +20,10 @@ test('Scrape LinkedIn Jobs IT Iasi', async ({ page, context }) => {
 
   console.log('Navigăm pe LinkedIn Jobs (public)...');
 
-  const searchUrl = 'https://www.linkedin.com/jobs/search/?keywords=IT&location=Iasi%2C%20Romania&trk=public_jobs_jobs-search-bar_search-submit';
+  const keywords = process.env.SCRAPER_KEYWORDS || process.env.SCRAPER_CATEGORY || 'IT';
+  const location = process.env.SCRAPER_LOCATION || 'Iasi';
+  const searchUrl = `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(keywords)}&location=${encodeURIComponent(location + ', Romania')}&trk=public_jobs_jobs-search-bar_search-submit`;
+  console.log(`Keywords: ${keywords} | Location: ${location}`);
   await page.goto(searchUrl, { waitUntil: 'domcontentloaded' });
 
   try {

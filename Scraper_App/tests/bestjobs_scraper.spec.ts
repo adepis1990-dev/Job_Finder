@@ -19,7 +19,11 @@ test('Scrape BestJobs IT Iasi', async ({ page, context }) => {
   await page.route('mailto:**', route => route.abort());
   console.log('Navigăm pe BestJobs.eu...');
 
-  await page.goto('https://www.bestjobs.eu/ro/locuri-de-munca?keyword=IT&location=Iasi', { waitUntil: 'networkidle' });
+  const keywords = process.env.SCRAPER_KEYWORDS || process.env.SCRAPER_CATEGORY || 'IT';
+  const location = process.env.SCRAPER_LOCATION || 'Iasi';
+  const bestjobsUrl = `https://www.bestjobs.eu/ro/locuri-de-munca?keyword=${encodeURIComponent(keywords)}&location=${encodeURIComponent(location)}`;
+  console.log(`Keywords: ${keywords} | Location: ${location}`);
+  await page.goto(bestjobsUrl, { waitUntil: 'networkidle' });
 
   // Accept cookies
   const cookieButton = page.locator('button:has-text("Acceptă"), button:has-text("Accept"), button[id*="cookie"]');

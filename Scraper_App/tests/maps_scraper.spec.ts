@@ -74,10 +74,14 @@ test('Scrape stabil Google Maps Iasi', async ({ page, context }) => {
   }
 
   // 2. Căutare
+  const keywords = process.env.SCRAPER_KEYWORDS || process.env.SCRAPER_CATEGORY || 'IT';
+  const location = process.env.SCRAPER_LOCATION || 'Iasi';
+  const searchQuery = `Firme ${keywords} ${location}`;
   const searchBox = page.getByRole('combobox', { name: /Caută pe Google Maps|Search Google Maps/i });
   await searchBox.waitFor({ state: 'visible', timeout: 10000 });
-  await searchBox.fill('Firme IT Iasi');
+  await searchBox.fill(searchQuery);
   await page.keyboard.press('Enter');
+  console.log(`Cautam: "${searchQuery}"`);
 
   console.log('Așteptăm încărcarea rezultatelor...');
   await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
