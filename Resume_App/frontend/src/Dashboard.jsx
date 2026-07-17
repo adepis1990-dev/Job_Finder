@@ -53,34 +53,14 @@ function ScraperIcon() {
 
 const SERVICES = [
   {
-    id: 'resume',
-    title: 'Resume Builder',
-    description: 'AI-powered CV, portfolio & cover letter generator',
+    id: 'resume-ai',
+    title: 'Resume AI',
+    description: 'AI-powered document builder, email campaign & job finder — all in one',
     icon: ResumeIcon,
     level: 1,
     color: '#4a9e6e',
     bgColor: '#f0faf4',
     borderColor: '#c6f0d5',
-  },
-  {
-    id: 'email',
-    title: 'Email Campaign',
-    description: 'Preview, manage recipients & send bulk applications',
-    icon: EmailIcon,
-    level: 2,
-    color: '#4a7ec8',
-    bgColor: '#f0f5fc',
-    borderColor: '#c6d8f0',
-  },
-  {
-    id: 'scraper',
-    title: 'Job Finder',
-    description: 'Scrape jobs from Maps, LinkedIn, BestJobs, eJobs, Hipo',
-    icon: ScraperIcon,
-    level: 3,
-    color: '#8b6db5',
-    bgColor: '#f8f4fc',
-    borderColor: '#ddd0ee',
   },
 ]
 
@@ -96,34 +76,26 @@ export default function Dashboard({ userLevel, userName, onSelectService, onLogo
 
         <div style={s.grid}>
           {SERVICES.map(svc => {
-            const locked = userLevel < svc.level
             const Icon = svc.icon
             return (
               <button
                 key={svc.id}
                 style={{
                   ...s.card,
-                  background: locked ? '#f7f8fa' : svc.bgColor,
-                  borderColor: locked ? '#e2e8f0' : svc.borderColor,
-                  opacity: locked ? 0.5 : 1,
-                  cursor: locked ? 'not-allowed' : 'pointer',
+                  background: svc.bgColor,
+                  borderColor: svc.borderColor,
+                  cursor: 'pointer',
                 }}
-                disabled={locked}
                 onClick={() => onSelectService(svc.id)}
               >
                 <div style={s.cardIcon}>
                   <Icon />
                 </div>
                 <div style={s.cardContent}>
-                  <h3 style={{ ...s.cardTitle, color: locked ? '#a0aec0' : svc.color }}>{svc.title}</h3>
+                  <h3 style={{ ...s.cardTitle, color: svc.color }}>{svc.title}</h3>
                   <p style={s.cardDesc}>{svc.description}</p>
                 </div>
-                {locked && (
-                  <span style={s.lockBadge}>Level {svc.level} required</span>
-                )}
-                {!locked && (
-                  <span style={{ ...s.openBadge, background: svc.color }}>Open</span>
-                )}
+                <span style={{ ...s.openBadge, background: svc.color }}>Open</span>
               </button>
             )
           })}

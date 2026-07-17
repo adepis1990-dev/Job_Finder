@@ -88,7 +88,7 @@ export default function App() {
       )}
       {currentView === 'about' && <AboutPage />}
       {currentView === 'contact' && <ContactPage />}
-      {['resume', 'email', 'scraper'].includes(currentView) && (
+      {currentView === 'resume-ai' && (
         <MainApp
           authData={authData}
           onLogout={handleLogout}
@@ -104,9 +104,9 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
   const userLevel = authData?.user?.level || 1
   const userName = authData?.user?.name || authData?.user?.username || 'User'
 
-  // Show panels based on which service was selected from dashboard
-  const [viewEmailer, setViewEmailer] = useState(initialView === 'email' || (initialView === 'resume' && userLevel >= 2))
-  const [viewScraper, setViewScraper] = useState(initialView === 'scraper' || (initialView === 'resume' && userLevel >= 3))
+  // Show panels based on user level
+  const [viewEmailer, setViewEmailer] = useState(userLevel >= 2)
+  const [viewScraper, setViewScraper] = useState(userLevel >= 3)
   const [emailRefreshKey, setEmailRefreshKey] = useState(0)
   const [loadedRecipients, setLoadedRecipients] = useState(null)
   const [useCases, setUseCases]     = useState({})
