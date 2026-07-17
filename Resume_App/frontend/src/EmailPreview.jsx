@@ -11,10 +11,12 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState(null)
 
+  const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}` }
+
   const loadData = () => {
     Promise.all([
-      fetch(`${API}/email-preview`).then(r => r.json()),
-      fetch(`${API}/attachments`).then(r => r.json()),
+      fetch(`${API}/email-preview`, { headers: authHeaders }).then(r => r.json()),
+      fetch(`${API}/attachments`, { headers: authHeaders }).then(r => r.json()),
     ])
       .then(([preview, atts]) => {
         setData(preview)
@@ -44,11 +46,11 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
   }, [loadedRecipients])
 
   const refreshAttachments = () => {
-    fetch(`${API}/attachments`).then(r => r.json()).then(setAttachments).catch(() => {})
+    fetch(`${API}/attachments`, { headers: authHeaders }).then(r => r.json()).then(setAttachments).catch(() => {})
   }
 
   const deleteAttachment = async (id) => {
-    await fetch(`${API}/attachments/${id}`, { method: 'DELETE' })
+    await fetch(`${API}/attachments/${id}`, { method: 'DELETE', headers: authHeaders })
     refreshAttachments()
   }
 
@@ -96,7 +98,7 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
     setSending(true)
     setSendResult(null)
     try {
-      const res = await fetch(`${API}/send-emails?test_mode=${testMode}`, { method: 'POST' })
+      const res = await fetch(`${API}/send-emails?test_mode=${testMode}`, { method: 'POST', headers: authHeaders })
       const result = await res.json()
       if (!res.ok) throw new Error(result.detail || 'Eroare la trimitere')
       setSendResult(result)

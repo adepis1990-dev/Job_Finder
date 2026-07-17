@@ -84,17 +84,21 @@ for key, val in os.environ.items():
 
 @app.post("/auth/login")
 def local_login(username: str = Form(...), password: str = Form(...)):
-    """Login with local username/password. Returns JWT with user level."""
+    """Login with local username/password. Returns JWT with user level and unique session ID."""
     user = LOCAL_USERS.get(username.lower())
     if not user or user["password"] != password:
         raise HTTPException(401, "Invalid username or password")
 
-    # Generate a local JWT
+    # Generate a unique session ID for this login
     import time
+    import uuid
+    session_id = str(uuid.uuid4())[:8]  # Short unique ID per session
+
     payload = {
         "sub": username.lower(),
         "name": user["name"],
         "level": user["level"],
+        "session_id": session_id,
         "type": "local",
         "iat": int(time.time()),
         "exp": int(time.time()) + 86400 * 7,  # 7 days
@@ -102,7 +106,7 @@ def local_login(username: str = Form(...), password: str = Form(...)):
     token = jwt.encode(payload, LOCAL_JWT_SECRET, algorithm="HS256")
     return {
         "access_token": token,
-        "user": {"username": username.lower(), "name": user["name"], "level": user["level"]},
+        "user": {"username": username.lower(), "name": user["name"], "level": user["level"], "session_id": session_id},
     }
 
 
@@ -205,6 +209,9 @@ THEMES = {
     "elegant":  {"layout": "banner",   "accent": "#7c3aed", "text": "#1f1f1f", "muted": "#6b7280",
                  "fn": "Calibri", "fn_bold": "Calibri-Bold", "fn_italic": "Calibri-Italic",
                  "fn_bi": "Calibri-Bold", "name_size": 22, "body_size": 10},
+    "blue":     {"layout": "blue",     "accent": "#2b3a55", "text": "#1a1a2e", "muted": "#6b7a8d",
+                 "fn": "Calibri", "fn_bold": "Calibri-Bold", "fn_italic": "Calibri-Italic",
+                 "fn_bi": "Calibri-Bold", "name_size": 24, "body_size": 10},
 }
 
 # ── Style factory ─────────────────────────────────────────────────────────────
@@ -421,6 +428,165 @@ def build_centered(doc, blocks, st, t, photo_path, photo_w):
     story += render_blocks(blocks, st, t, skip={"name", "contact", "spacer"})
     doc.build(story)
 
+# ── Blue layout (two-column executive style with rounded photo) ───────────────
+def build_blue(output_path, blocks, st, t, photo_path, photo_w):
+    """
+    Executive two-column layout inspired by the 'blue' theme:
+    - Left column: Photo (circular mask), contact info, languages, expertise
+    - Right column: Name header, experience, education, skills
+    - Dark navy accent color for section headers
+    """
+    from reportlab.lib.utils import ImageReader
+
+    PW, PH = letter
+    LEFT_W = 2.4 * inch
+    RIGHT_W = PW - LEFT_W
+    PAD = 0.2 * inch
+    acc = colors.HexColor(t["accent"])
+    txt = colors.HexColor(t["text"])
+    mut = colors.HexColor(t["muted"])
+    fn, fnb, fni = t["fn"], t["fn_bold"], t["fn_italic"]
+
+    # Separate blocks into left (contact, about) and right (sections, experience)
+    left_blocks = []
+    right_blocks = []
+    header_blocks = []  # name + contact (first ones)
+
+    in_header = True
+    left_sections = {"LANGUAGE", "LANGUAGES", "EXPERTISE", "SKILLS", "TECHNICAL SKILLS",
+                     "CORE COMPETENCIES", "KEY SKILLS", "INTERESTS", "HOBBIES",
+                     "CERTIFICATIONS", "CERTIFICATES", "ABOUT ME", "PROFILE", "SUMMARY"}
+
+    current_section_name = ""
+    for block in blocks:
+        if block["type"] == "name" and in_header:
+            header_blocks.append(block)
+            continue
+        if block["type"] == "contact" and in_header:
+            left_blocks.append(block)
+            continue
+        if block["type"] == "section":
+            in_header = False
+            section_text = "".join(s.get("text", "") for s in block.get("spans", [])).upper().strip()
+            current_section_name = section_text
+            if section_text in left_sections:
+                left_blocks.append(block)
+            else:
+                right_blocks.append(block)
+            continue
+        in_header = False
+        if current_section_name in left_sections:
+            left_blocks.append(block)
+        else:
+            right_blocks.append(block)
+
+    # Build left column content
+    left_story = []
+
+    # Photo (circular crop effect using clipping)
+    if photo_path:
+        avail = LEFT_W - 2 * PAD
+        pw, ph = photo_dims(photo_path, photo_w * inch, avail)
+        # Make it square for circular appearance
+        size = min(pw, ph, avail * 0.8)
+        img = RLImage(photo_path, width=size, height=size)
+        # Wrap in a table for centering
+        ct = Table([[img]], colWidths=[avail])
+        ct.setStyle(TableStyle([
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 18),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ]))
+        left_story.append(ct)
+
+    # Left column blocks (contact, skills, languages)
+    left_story += render_blocks(left_blocks, st, t, white=True)
+
+    # Build right column content
+    right_story = []
+
+    # Name (large, dark navy)
+    name_style = ParagraphStyle("BlueName", fontName=fnb, fontSize=t["name_size"],
+        leading=t["name_size"] + 6, textColor=acc, spaceAfter=4)
+    for b in header_blocks:
+        right_story.append(_block_to_para(b, name_style, t))
+
+    right_story.append(Spacer(1, 6))
+
+    # Right column sections (experience, education)
+    for block in right_blocks:
+        btype = block["type"]
+        if btype == "section":
+            right_story.append(Spacer(1, 8))
+            # Section header with colored background pill
+            sec_style = ParagraphStyle("BlueSec", fontName=fnb, fontSize=10,
+                leading=14, textColor=colors.white, alignment=TA_CENTER)
+            sec_para = _block_to_para(block, sec_style, t)
+            sec_tbl = Table([[sec_para]], colWidths=[RIGHT_W - 2 * PAD - 0.3 * inch])
+            sec_tbl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), acc),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("ROUNDEDCORNERS", [4, 4, 4, 4]),
+            ]))
+            right_story.append(sec_tbl)
+            right_story.append(Spacer(1, 6))
+        elif btype == "jobtitle":
+            jt_style = ParagraphStyle("BlueJob", fontName=fnb, fontSize=10,
+                leading=13, textColor=txt, spaceAfter=1)
+            right_story.append(_block_to_para(block, jt_style, t))
+        elif btype == "bullet":
+            bul_style = ParagraphStyle("BlueBul", fontName=fn, fontSize=9,
+                leading=12, textColor=txt, leftIndent=12, firstLineIndent=-8, spaceAfter=2)
+            spans_xml = spans_to_rl(block.get("spans", []),
+                base_font=fn, bold_font=fnb, italic_font=fni, bolditalic_font=t["fn_bi"])
+            right_story.append(Paragraph(f"• {spans_xml}", bul_style))
+        elif btype == "body":
+            body_style = ParagraphStyle("BlueBody", fontName=fn, fontSize=9,
+                leading=12, textColor=txt, spaceAfter=2)
+            right_story.append(_block_to_para(block, body_style, t))
+        elif btype == "spacer":
+            right_story.append(Spacer(1, 4))
+
+    # Assemble two-column layout
+    left_tbl = Table([[left_story]], colWidths=[LEFT_W - 2 * PAD])
+    left_tbl.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), int(PAD)),
+        ("RIGHTPADDING", (0, 0), (-1, -1), int(PAD)),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    right_tbl = Table([[right_story]], colWidths=[RIGHT_W - 2 * PAD])
+    right_tbl.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), int(PAD)),
+        ("RIGHTPADDING", (0, 0), (-1, -1), int(PAD)),
+        ("TOPPADDING", (0, 0), (-1, -1), 18),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    layout = Table([[left_tbl, right_tbl]], colWidths=[LEFT_W, RIGHT_W])
+    layout.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f4f8")),  # light grey-blue left bg
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+
+    rl_doc = SimpleDocTemplate(output_path, pagesize=letter,
+        rightMargin=0, leftMargin=0, topMargin=0, bottomMargin=0.5 * inch)
+    rl_doc.build([layout])
+
+
 # ── Main PDF builder ──────────────────────────────────────────────────────────
 def build_pdf(doc_obj: dict, output_path: str, photo_path: str | None = None,
               original_style: dict | None = None):
@@ -446,6 +612,10 @@ def build_pdf(doc_obj: dict, output_path: str, photo_path: str | None = None,
 
     if layout == "sidebar":
         build_sidebar(output_path, blocks, st, t, photo_path, photo_width_in)
+        return
+
+    if layout == "blue":
+        build_blue(output_path, blocks, st, t, photo_path, photo_width_in)
         return
 
     rl_doc = SimpleDocTemplate(output_path, pagesize=letter,
@@ -586,6 +756,7 @@ def rename_doc(doc_id: str, title: str = Form(...)):
 # ── Route: generate ───────────────────────────────────────────────────────────
 @app.post("/generate")
 async def generate(
+    request: Request,
     doc_type:    str   = Form(...),
     tone:        str   = Form("professional"),
     theme:       str   = Form("classic"),
@@ -716,11 +887,28 @@ async def generate(
             # Use title for a more descriptive filename
             safe_title = re.sub(r'[^\w\s\-]', '', title).strip().replace(' ', '_')
             attachment_name = f"{safe_title}.pdf" if safe_title else fname
+
+            # Save a local copy in output folder (overwrite previous)
+            username = _get_username(request)
+            output_dir = os.path.join(os.path.dirname(__file__), "output", username)
+            os.makedirs(output_dir, exist_ok=True)
+            # Delete older files of same type in output folder
+            for old_file in os.listdir(output_dir):
+                if old_file.lower().startswith(attachment_type) or old_file == attachment_name:
+                    try:
+                        os.remove(os.path.join(output_dir, old_file))
+                    except Exception:
+                        pass
+            local_path = os.path.join(output_dir, attachment_name)
+            with open(local_path, "wb") as lf:
+                lf.write(pdf_bytes_out)
+
             db.upload_attachment(
                 file_bytes=pdf_bytes_out,
                 file_name=attachment_name,
                 file_type=attachment_type,
                 document_id=saved["id"],
+                username=username,
             )
         except Exception:
             pass  # Don't fail the request if upload fails
@@ -742,20 +930,39 @@ def health():
 
 
 # ── Route: attachments CRUD ───────────────────────────────────────────────────
+
+def _get_username(request: Request) -> str:
+    """Extract username/session_id from auth token. Returns scoped path like 'user/a1b2c3d4'."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header.replace("Bearer ", "")
+        try:
+            payload = jwt.decode(token, LOCAL_JWT_SECRET, algorithms=["HS256"])
+            username = payload.get("sub", "anonymous")
+            session_id = payload.get("session_id", "default")
+            return f"{username}/{session_id}"
+        except Exception:
+            pass
+    return "anonymous/default"
+
+
 @app.get("/attachments")
-def list_attachments(file_type: str = None):
-    """List all stored attachments (PDFs in Supabase Storage)."""
-    attachments = db.list_attachments(file_type)
-    # Add public URL to each attachment
+def list_attachments(request: Request, file_type: str = None):
+    """List stored attachments for the current user only."""
+    username = _get_username(request)
+    attachments = db.list_attachments(file_type, username=username)
     for att in attachments:
         att["url"] = db.get_attachment_url(att["storage_path"])
     return attachments
 
 
 @app.delete("/attachments/{attachment_id}")
-def delete_attachment(attachment_id: str):
+def delete_attachment(request: Request, attachment_id: str):
     """Delete an attachment from storage and DB."""
-    db.delete_attachment(attachment_id)
+    try:
+        db.delete_attachment(attachment_id)
+    except Exception:
+        pass
     return {"ok": True}
 
 

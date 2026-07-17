@@ -15,6 +15,7 @@ const THEMES = [
   { id:'sidebar',  label:'Sidebar',  accent:'#0f4c81', layout:'sidebar' },
   { id:'minimal',  label:'Minimal',  accent:'#111',    layout:'centered' },
   { id:'elegant',  label:'Elegant',  accent:'#7c3aed', layout:'banner' },
+  { id:'blue',     label:'Blue',     accent:'#2b3a55', layout:'two-col' },
   { id:'original', label:'Original', accent:'#888',    layout:'single-col' },
 ]
 
@@ -199,7 +200,11 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
     if (resumeFile) fd.append('file', resumeFile)
     if (photoFile)  fd.append('photo', photoFile)
     try {
-      const res = await fetch(`${API}/generate`, { method: 'POST', body: fd })
+      const res = await fetch(`${API}/generate`, {
+        method: 'POST',
+        body: fd,
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}` }
+      })
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
         throw new Error(e.detail || `Error ${res.status}`)

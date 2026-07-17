@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const IS_LOCAL = API.includes('localhost')
 
 export default function ScraperPanel({ onLoadRecipients }) {
   const [scrapers, setScrapers] = useState([])
@@ -149,12 +150,14 @@ export default function ScraperPanel({ onLoadRecipients }) {
                 </div>
               </div>
               <div style={s.btnGroup}>
+                {IS_LOCAL && (
                 <button
                   style={{ ...s.scrapeBtn, ...(scraping[sc.id] ? s.btnDisabled : {}) }}
                   disabled={scraping[sc.id]}
                   onClick={() => runScraper(sc.id)}>
                   {scraping[sc.id] ? '⏳...' : '▶ Scrape'}
                 </button>
+                )}
                 <button
                   style={{ ...s.loadBtn, ...(loadingSource === sc.id || !sc.has_results ? s.btnDisabled : {}) }}
                   disabled={loadingSource === sc.id || !sc.has_results}
@@ -222,11 +225,13 @@ export default function ScraperPanel({ onLoadRecipients }) {
           <span style={s.loadAllHint}>Combine + load rezultate_all.json</span>
         </div>
         <div style={s.btnGroup}>
+          {IS_LOCAL && (
           <button style={{ ...s.mergeBtn, ...(loadingSource === 'merging' ? s.btnDisabled : {}) }}
             disabled={loadingSource === 'merging'}
             onClick={runMerge}>
             {loadingSource === 'merging' ? '⏳...' : '🔗 Merge'}
           </button>
+          )}
           <button style={{ ...s.loadAllBtn, ...(loadingSource === 'all' ? s.btnDisabled : {}) }}
             disabled={loadingSource === 'all'}
             onClick={loadAll}>
