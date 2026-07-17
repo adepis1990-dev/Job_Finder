@@ -1118,7 +1118,7 @@ def remove_recipient(email: str):
 
 # ── Route: send emails ────────────────────────────────────────────────────────
 @app.post("/send-emails")
-def send_emails(test_mode: bool = False):
+def send_emails(request: Request, test_mode: bool = False):
     """
     Send emails to all recipients using the Mailer_App SMTP config.
     If test_mode=True, sends only to the configured SMTP_USER (self-test).
@@ -1164,18 +1164,36 @@ def send_emails(test_mode: bool = False):
     if template_path.exists():
         body_html = template_path.read_text(encoding="utf-8")
 
-    # Get attachment file paths
+    # Get attachment file paths — from Supabase Storage (user's uploaded attachments)
     attachment_paths = []
+    # First try: get attachments from the local output folder
     if cv_path_str:
         for p in cv_path_str.split(","):
             resolved = (mailer_root / p.strip()).resolve()
             if resolved.exists():
                 attachment_paths.append(str(resolved))
 
+    # If no local files found, download from Supabase Storage (scoped to current user session)
+    if not attachment_paths:
+        try:
+            username = _get_username(request)
+            user_attachments = db.list_attachments(username=username)
+            for att in user_attachments:
+                try:
+                    file_bytes = db.download_attachment(att["storage_path"])
+                    tmp_att_path = os.path.join(tempfile.gettempdir(), att["file_name"])
+                    with open(tmp_att_path, "wb") as f:
+                        f.write(file_bytes)
+                    attachment_paths.append(tmp_att_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     # Build recipients list
     recipients = []
     if test_mode:
-        recipients = [{"companyName": "TEST", "email": smtp_user, "source": "test"}]
+        recipients = [{"companyName": "your company", "email": smtp_user, "source": "test"}]
     else:
         if not rpath.exists():
             raise HTTPException(404, "Recipients file not found")

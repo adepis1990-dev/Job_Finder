@@ -51,6 +51,56 @@ function ScraperIcon() {
   )
 }
 
+function AccountingIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+      {/* Calculator/ledger */}
+      <rect x="10" y="6" width="28" height="36" rx="3" fill="#eef2f7" stroke="#4a6fa5" strokeWidth="1.5" />
+      <rect x="14" y="10" width="20" height="8" rx="2" fill="#4a6fa5" />
+      <text x="24" y="16" textAnchor="middle" fontSize="5" fill="#fff" fontWeight="700" fontFamily="Arial">1,250.00</text>
+      {/* Grid lines (ledger rows) */}
+      <rect x="14" y="22" width="9" height="4" rx="1" fill="#c8d8e8" />
+      <rect x="25" y="22" width="9" height="4" rx="1" fill="#c8d8e8" />
+      <rect x="14" y="28" width="9" height="4" rx="1" fill="#d8e4f0" />
+      <rect x="25" y="28" width="9" height="4" rx="1" fill="#d8e4f0" />
+      <rect x="14" y="34" width="9" height="4" rx="1" fill="#c8d8e8" />
+      <rect x="25" y="34" width="9" height="4" rx="1" fill="#c8d8e8" />
+    </svg>
+  )
+}
+
+function BillingIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+      {/* Invoice/receipt */}
+      <path d="M12 6 L36 6 L36 40 L33 38 L30 40 L27 38 L24 40 L21 38 L18 40 L15 38 L12 40 Z"
+        fill="#eef7f0" stroke="#3d8b5e" strokeWidth="1.5" />
+      {/* Dollar sign */}
+      <circle cx="24" cy="18" r="6" fill="#3d8b5e" opacity="0.15" />
+      <text x="24" y="21" textAnchor="middle" fontSize="10" fill="#3d8b5e" fontWeight="700" fontFamily="Arial">$</text>
+      {/* Lines */}
+      <rect x="16" y="28" width="16" height="2" rx="1" fill="#a8d4b9" />
+      <rect x="16" y="33" width="12" height="2" rx="1" fill="#c8ecd6" />
+    </svg>
+  )
+}
+
+function ReportingIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+      {/* Chart/graph */}
+      <rect x="10" y="6" width="28" height="36" rx="3" fill="#f3eef8" stroke="#7c5aab" strokeWidth="1.5" />
+      {/* Bar chart */}
+      <rect x="15" y="28" width="5" height="10" rx="1" fill="#7c5aab" opacity="0.4" />
+      <rect x="22" y="22" width="5" height="16" rx="1" fill="#7c5aab" opacity="0.6" />
+      <rect x="29" y="16" width="5" height="22" rx="1" fill="#7c5aab" opacity="0.8" />
+      {/* Trend line */}
+      <polyline points="15,26 22,20 29,14 35,11" stroke="#7c5aab" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <circle cx="35" cy="11" r="2" fill="#7c5aab" />
+    </svg>
+  )
+}
+
 const SERVICES = [
   {
     id: 'resume-ai',
@@ -61,6 +111,40 @@ const SERVICES = [
     color: '#4a9e6e',
     bgColor: '#f0faf4',
     borderColor: '#c6f0d5',
+    active: true,
+  },
+  {
+    id: 'accounting',
+    title: 'Accounting',
+    description: 'Track expenses, invoices and financial reports',
+    icon: AccountingIcon,
+    level: 3,
+    color: '#4a6fa5',
+    bgColor: '#f0f5fc',
+    borderColor: '#c6d8f0',
+    active: false,
+  },
+  {
+    id: 'billing',
+    title: 'Billing',
+    description: 'Manage subscriptions, payments and client invoicing',
+    icon: BillingIcon,
+    level: 3,
+    color: '#3d8b5e',
+    bgColor: '#f0faf4',
+    borderColor: '#c6f0d5',
+    active: false,
+  },
+  {
+    id: 'reporting',
+    title: 'Reporting',
+    description: 'Analytics dashboards, performance metrics and insights',
+    icon: ReportingIcon,
+    level: 3,
+    color: '#7c5aab',
+    bgColor: '#f8f4fc',
+    borderColor: '#ddd0ee',
+    active: false,
   },
 ]
 
@@ -76,26 +160,36 @@ export default function Dashboard({ userLevel, userName, onSelectService, onLogo
 
         <div style={s.grid}>
           {SERVICES.map(svc => {
+            const locked = userLevel < svc.level
+            const inactive = !svc.active
+            const disabled = locked || inactive
             const Icon = svc.icon
             return (
               <button
                 key={svc.id}
                 style={{
                   ...s.card,
-                  background: svc.bgColor,
-                  borderColor: svc.borderColor,
-                  cursor: 'pointer',
+                  background: disabled ? '#f7f8fa' : svc.bgColor,
+                  borderColor: disabled ? '#e2e8f0' : svc.borderColor,
+                  opacity: disabled ? 0.55 : 1,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
                 }}
-                onClick={() => onSelectService(svc.id)}
+                disabled={disabled}
+                onClick={() => !disabled && onSelectService(svc.id)}
               >
                 <div style={s.cardIcon}>
                   <Icon />
                 </div>
                 <div style={s.cardContent}>
-                  <h3 style={{ ...s.cardTitle, color: svc.color }}>{svc.title}</h3>
+                  <h3 style={{ ...s.cardTitle, color: disabled ? '#a0aec0' : svc.color }}>{svc.title}</h3>
                   <p style={s.cardDesc}>{svc.description}</p>
                 </div>
-                <span style={{ ...s.openBadge, background: svc.color }}>Open</span>
+                {!inactive && locked && (
+                  <span style={s.lockBadge}>Level {svc.level} required</span>
+                )}
+                {!disabled && (
+                  <span style={{ ...s.openBadge, background: svc.color }}>Open</span>
+                )}
               </button>
             )
           })}
@@ -145,5 +239,16 @@ const s = {
   openBadge: {
     marginTop: '8px', padding: '6px 18px', borderRadius: '8px',
     color: '#fff', fontSize: '12px', fontWeight: 700,
+  },
+  comingSoonBadge: {
+    marginTop: '8px', padding: '6px 14px', borderRadius: '8px',
+    background: '#edf2f7', color: '#718096', fontSize: '11px', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.3px',
+  },
+  lockBadge: {
+    position: 'absolute', top: '12px', right: '12px',
+    fontSize: '9px', fontWeight: 700, color: '#a0aec0',
+    background: '#edf2f7', padding: '3px 8px', borderRadius: '8px',
+    textTransform: 'uppercase', letterSpacing: '0.3px',
   },
 }
