@@ -211,7 +211,7 @@ export default function ScraperPanel({ onLoadRecipients }) {
             {scrapeResults[sc.id] && (
               <div style={scrapeResults[sc.id].success ? s.resultOk : s.resultErr}>
                 {scrapeResults[sc.id].success
-                  ? `✅ ${scrapeResults[sc.id].result_count} results found`
+                  ? `✅ ${scrapeResults[sc.id].message || scrapeResults[sc.id].result_count + ' results found'}`
                   : `⚠️ ${scrapeResults[sc.id].error || 'Error'}`}
               </div>
             )}
