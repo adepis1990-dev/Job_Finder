@@ -1648,7 +1648,7 @@ def get_all_scraper_results():
     }
 
 
-@app.post("/scrape/trigger/{scraper_name}")
+@app.post("/trigger-scrape/{scraper_name}")
 def trigger_github_scraper(scraper_name: str, category: str = None, max_results: int = None,
                            location: str = None, keywords: str = None):
     """Trigger GitHub Actions workflow to run a scraper in the cloud."""

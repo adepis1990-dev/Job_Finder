@@ -58,7 +58,7 @@ export default function ScraperPanel({ onLoadRecipients }) {
       if (opts.keywords) params.set('keywords', opts.keywords)
 
       // On production: trigger GitHub Actions; on local: run directly
-      const endpoint = IS_LOCAL ? `/scrape/${name}` : `/scrape/trigger/${name}`
+      const endpoint = IS_LOCAL ? `/scrape/${name}` : `/trigger-scrape/${name}`
       const url = `${API}${endpoint}?${params}`
 
       const res = await fetch(url, { method: 'POST' })
