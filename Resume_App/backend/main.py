@@ -1502,18 +1502,30 @@ def get_scrapers():
 
     scrapers_list = []
     for key, cfg in SCRAPERS.items():
-        result_path = scraper_root / cfg["result_file"]
-        has_results = result_path.exists()
+        has_results = False
         result_count = 0
         last_run = None
-        if has_results:
+
+        # Check local file first
+        result_path = scraper_root / cfg["result_file"]
+        if result_path.exists():
+            has_results = True
             try:
                 data = json.loads(result_path.read_text(encoding="utf-8"))
                 result_count = data.get("total", 0)
-                # Try to get file modification time
                 import datetime
                 mtime = result_path.stat().st_mtime
                 last_run = datetime.datetime.fromtimestamp(mtime).isoformat()
+            except Exception:
+                pass
+
+        # If no local file, check Supabase Storage
+        if not has_results:
+            try:
+                file_bytes = db.download_attachment(f"scraper-results/{cfg['result_file']}")
+                data = json.loads(file_bytes.decode("utf-8"))
+                has_results = True
+                result_count = data.get("total", 0)
             except Exception:
                 pass
 
@@ -1530,21 +1542,34 @@ def get_scrapers():
 @app.get("/scraper-results/{name}")
 def get_scraper_results(name: str):
     """
-    Load recipients from a single scraper's result file.
-    Returns list of {companyName, email, source} ready for the emailer.
+    Load recipients from a scraper's result file.
+    Tries Supabase Storage first, then local file as fallback.
     """
     from pathlib import Path
 
     if name not in SCRAPERS:
         raise HTTPException(404, f"Unknown scraper: {name}")
 
-    scraper_root = Path(SCRAPER_ROOT).resolve()
-    result_path = scraper_root / SCRAPERS[name]["result_file"]
+    result_file = SCRAPERS[name]["result_file"]
+    data = None
 
-    if not result_path.exists():
-        raise HTTPException(404, f"No results file for '{name}'. Run the scraper first.")
+    # Try Supabase Storage first
+    try:
+        file_bytes = db.download_attachment(f"scraper-results/{result_file}")
+        data = json.loads(file_bytes.decode("utf-8"))
+    except Exception:
+        pass
 
-    data = json.loads(result_path.read_text(encoding="utf-8"))
+    # Fallback: local file
+    if not data:
+        scraper_root = Path(SCRAPER_ROOT).resolve()
+        result_path = scraper_root / result_file
+        if result_path.exists():
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+
+    if not data:
+        raise HTTPException(404, f"No results for '{name}'. Run the scraper first (locally or via GitHub Actions).")
+
     entries = data.get("firme") or data.get("jobs") or []
 
     recipients = []
@@ -1574,17 +1599,28 @@ def get_scraper_results(name: str):
 def get_all_scraper_results():
     """
     Load recipients from rezultate_all.json (combined).
-    Returns list of {companyName, email, source} ready for the emailer.
+    Tries Supabase Storage first, then local file as fallback.
     """
     from pathlib import Path
 
-    scraper_root = Path(SCRAPER_ROOT).resolve()
-    result_path = scraper_root / "rezultate_all.json"
+    data = None
 
-    if not result_path.exists():
-        raise HTTPException(404, "rezultate_all.json not found. Run merge first.")
+    # Try Supabase Storage first
+    try:
+        file_bytes = db.download_attachment("scraper-results/rezultate_all.json")
+        data = json.loads(file_bytes.decode("utf-8"))
+    except Exception:
+        pass
 
-    data = json.loads(result_path.read_text(encoding="utf-8"))
+    # Fallback: local file
+    if not data:
+        scraper_root = Path(SCRAPER_ROOT).resolve()
+        result_path = scraper_root / "rezultate_all.json"
+        if result_path.exists():
+            data = json.loads(result_path.read_text(encoding="utf-8"))
+
+    if not data:
+        raise HTTPException(404, "No combined results found. Run scrapers + merge first.")
 
     recipients = []
     seen = set()
@@ -1606,10 +1642,54 @@ def get_all_scraper_results():
 
     return {
         "source": "all",
-        "source_label": "Toate sursele",
+        "source_label": "All sources",
         "total": len(recipients),
         "recipients": recipients,
     }
+
+
+@app.post("/scrape/trigger/{scraper_name}")
+def trigger_github_scraper(scraper_name: str, category: str = None, max_results: int = None,
+                           location: str = None, keywords: str = None):
+    """Trigger GitHub Actions workflow to run a scraper in the cloud."""
+    import httpx
+
+    github_token = os.getenv("GITHUB_TOKEN", "")
+    if not github_token:
+        raise HTTPException(500, "GITHUB_TOKEN not configured. Add it to Railway environment variables.")
+
+    repo = "adepis1990-dev/Job_Finder"
+    workflow_url = f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches"
+
+    payload = {
+        "ref": "main",
+        "inputs": {
+            "scraper": scraper_name if scraper_name != "all" else "all",
+            "keywords": keywords or "",
+            "category": category or "IT",
+            "location": location or "Iasi",
+            "max_results": str(max_results or 20),
+        }
+    }
+
+    try:
+        resp = httpx.post(
+            workflow_url,
+            json=payload,
+            headers={
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+            timeout=10,
+        )
+        if resp.status_code == 204:
+            return {"success": True, "message": f"Scraper '{scraper_name}' triggered on GitHub Actions. Results will appear in ~3-5 minutes."}
+        else:
+            raise HTTPException(resp.status_code, f"GitHub API error: {resp.text}")
+    except httpx.TimeoutException:
+        raise HTTPException(504, "GitHub API timeout")
+    except Exception as e:
+        raise HTTPException(500, f"Failed to trigger: {e}")
 
 
 @app.post("/scrape/merge")

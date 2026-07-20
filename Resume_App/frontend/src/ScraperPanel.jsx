@@ -50,16 +50,17 @@ export default function ScraperPanel({ onLoadRecipients }) {
     setScraping(prev => ({ ...prev, [name]: true }))
     setScrapeResults(prev => ({ ...prev, [name]: null }))
     try {
-      let url = `${API}/scrape/${name}`
-      const opts = scraperOpts[name]
-      if (opts) {
-        const params = new URLSearchParams()
-        if (opts.category) params.set('category', opts.category)
-        if (opts.max_results) params.set('max_results', String(opts.max_results))
-        if (opts.location) params.set('location', opts.location)
-        if (opts.keywords) params.set('keywords', opts.keywords)
-        url += `?${params}`
-      }
+      const opts = scraperOpts[name] || {}
+      const params = new URLSearchParams()
+      if (opts.category) params.set('category', opts.category)
+      if (opts.max_results) params.set('max_results', String(opts.max_results))
+      if (opts.location) params.set('location', opts.location)
+      if (opts.keywords) params.set('keywords', opts.keywords)
+
+      // On production: trigger GitHub Actions; on local: run directly
+      const endpoint = IS_LOCAL ? `/scrape/${name}` : `/scrape/trigger/${name}`
+      const url = `${API}${endpoint}?${params}`
+
       const res = await fetch(url, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.detail || 'Error')
@@ -151,14 +152,12 @@ export default function ScraperPanel({ onLoadRecipients }) {
                 </div>
               </div>
               <div style={s.btnGroup}>
-                {IS_LOCAL && (
                 <button
                   style={{ ...s.scrapeBtn, ...(scraping[sc.id] ? s.btnDisabled : {}) }}
                   disabled={scraping[sc.id]}
                   onClick={() => runScraper(sc.id)}>
                   {scraping[sc.id] ? '⏳...' : '▶ Scrape'}
                 </button>
-                )}
                 <button
                   style={{ ...s.loadBtn, ...(loadingSource === sc.id || !sc.has_results ? s.btnDisabled : {}) }}
                   disabled={loadingSource === sc.id || !sc.has_results}
@@ -227,13 +226,11 @@ export default function ScraperPanel({ onLoadRecipients }) {
           <span style={s.loadAllHint}>Combine + load rezultate_all.json</span>
         </div>
         <div style={s.btnGroup}>
-          {IS_LOCAL && (
           <button style={{ ...s.mergeBtn, ...(loadingSource === 'merging' ? s.btnDisabled : {}) }}
             disabled={loadingSource === 'merging'}
-            onClick={runMerge}>
+            onClick={IS_LOCAL ? runMerge : () => runScraper('all')}>
             {loadingSource === 'merging' ? '⏳...' : '🔗 Merge'}
           </button>
-          )}
           <button style={{ ...s.loadAllBtn, ...(loadingSource === 'all' ? s.btnDisabled : {}) }}
             disabled={loadingSource === 'all'}
             onClick={loadAll}>
