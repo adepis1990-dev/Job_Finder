@@ -46,6 +46,31 @@ export default function ScraperPanel({ onLoadRecipients }) {
     }))
   }
 
+  // Countdown timers per scraper (seconds remaining)
+  const [countdowns, setCountdowns] = useState({})
+
+  // Countdown tick effect
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdowns(prev => {
+        const next = { ...prev }
+        let changed = false
+        for (const key of Object.keys(next)) {
+          if (next[key] > 0) {
+            next[key] -= 1
+            changed = true
+            if (next[key] === 0) {
+              // Timer finished — auto refresh scrapers list
+              refreshScrapers()
+            }
+          }
+        }
+        return changed ? next : prev
+      })
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
+
   const runScraper = async (name) => {
     setScraping(prev => ({ ...prev, [name]: true }))
     setScrapeResults(prev => ({ ...prev, [name]: null }))
@@ -66,6 +91,11 @@ export default function ScraperPanel({ onLoadRecipients }) {
       if (!res.ok) throw new Error(data.detail || 'Error')
       setScrapeResults(prev => ({ ...prev, [name]: data }))
       refreshScrapers()
+
+      // Start countdown on production (GitHub Actions takes ~3-5 min)
+      if (!IS_LOCAL && data.success) {
+        setCountdowns(prev => ({ ...prev, [name]: 240 })) // 4 min countdown
+      }
     } catch (e) {
       setScrapeResults(prev => ({ ...prev, [name]: { success: false, error: e.message } }))
     } finally {
@@ -213,6 +243,14 @@ export default function ScraperPanel({ onLoadRecipients }) {
                 {scrapeResults[sc.id].success
                   ? `✅ ${scrapeResults[sc.id].message || scrapeResults[sc.id].result_count + ' results found'}`
                   : `⚠️ ${scrapeResults[sc.id].error || 'Error'}`}
+                {countdowns[sc.id] > 0 && (
+                  <span style={{ marginLeft: 8, fontWeight: 400 }}>
+                    ⏱ Ready in ~{Math.floor(countdowns[sc.id] / 60)}:{String(countdowns[sc.id] % 60).padStart(2, '0')}
+                  </span>
+                )}
+                {countdowns[sc.id] === 0 && scrapeResults[sc.id].success && !IS_LOCAL && (
+                  <span style={{ marginLeft: 8, fontWeight: 700 }}> — Ready! Click Load</span>
+                )}
               </div>
             )}
           </div>

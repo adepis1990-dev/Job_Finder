@@ -214,7 +214,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
       const blob = await res.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href = url
-      a.download = `${docType}.pdf`; document.body.appendChild(a); a.click(); a.remove()
+      a.download = title ? `${title.replace(/[^\w\s\-]/g, '').trim()}.pdf` : `${docType}.pdf`; document.body.appendChild(a); a.click(); a.remove()
       window.URL.revokeObjectURL(url)
       setStatus('success')
       loadHistory()

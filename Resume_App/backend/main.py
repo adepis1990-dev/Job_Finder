@@ -986,8 +986,8 @@ def email_preview():
     """
     Reads Mailer_App .env config and recipients JSON to provide
     a full email preview for the frontend panel.
+    Falls back to sensible defaults if Mailer_App is not present (e.g. on Railway).
     """
-    import configparser
     from pathlib import Path
 
     mailer_root = Path(__file__).resolve().parent.parent.parent / "Mailer_App"
@@ -1008,18 +1008,25 @@ def email_preview():
             val = line[eq+1:].strip()
             config_data[key] = val
 
-    smtp_user = config_data.get("SMTP_USER", "")
-    from_name = config_data.get("FROM_NAME", "")
-    subject = config_data.get("SUBJECT", "")
+    # Use env vars as fallback (from Railway/production)
+    smtp_user = config_data.get("SMTP_USER", "") or os.getenv("SMTP_USER", "")
+    from_name = config_data.get("FROM_NAME", "") or os.getenv("FROM_NAME", "Applicant")
+    subject = config_data.get("SUBJECT", "") or os.getenv("EMAIL_SUBJECT", "Job Application")
     recipients_path = config_data.get("RECIPIENTS_PATH", "../Scraper_App/rezultate_all.json")
 
     # Resolve recipients path relative to Mailer_App root
     rpath = (mailer_root / recipients_path).resolve()
 
-    # Read template
+    # Read template — fallback to default English template
     body_html = ""
     if template_path.exists():
         body_html = template_path.read_text(encoding="utf-8")
+    else:
+        body_html = """<p>Hello,</p>
+<p>I am writing to express my interest in the opportunities available at {companyName}.</p>
+<p>I have attached my CV for your consideration.</p>
+<p>Thank you for your time, and I remain available for any additional information.</p>
+<p>Best regards,<br><strong>{fromName}</strong></p>"""
 
     # Read recipients
     recipients = []
