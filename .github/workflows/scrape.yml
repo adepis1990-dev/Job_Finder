@@ -1,0 +1,111 @@
+name: Run Job Scrapers
+
+on:
+  # Manual trigger from GitHub UI (Actions tab → Run workflow)
+  workflow_dispatch:
+    inputs:
+      scraper:
+        description: 'Which scraper to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - maps
+          - linkedin
+          - bestjobs
+          - ejobs
+          - hipo
+      keywords:
+        description: 'Search keywords (optional)'
+        required: false
+        default: ''
+      category:
+        description: 'Category'
+        required: false
+        default: 'IT'
+      location:
+        description: 'City'
+        required: false
+        default: 'Iasi'
+      max_results:
+        description: 'Max results per scraper'
+        required: false
+        default: '20'
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: ./Scraper_App
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./Scraper_App
+        run: npx playwright install chromium
+
+      - name: Run scraper
+        working-directory: ./Scraper_App
+        env:
+          SCRAPER_KEYWORDS: ${{ github.event.inputs.keywords }}
+          SCRAPER_CATEGORY: ${{ github.event.inputs.category }}
+          SCRAPER_LOCATION: ${{ github.event.inputs.location }}
+          SCRAPER_MAX_RESULTS: ${{ github.event.inputs.max_results }}
+          EJOBS_CATEGORY: ${{ github.event.inputs.category }}
+          EJOBS_MAX: ${{ github.event.inputs.max_results }}
+          EJOBS_LOCATION: ${{ github.event.inputs.location }}
+          EJOBS_KEYWORDS: ${{ github.event.inputs.keywords }}
+          HIPO_CATEGORY: ${{ github.event.inputs.category }}
+          HIPO_MAX: ${{ github.event.inputs.max_results }}
+          HIPO_LOCATION: ${{ github.event.inputs.location }}
+          HIPO_KEYWORDS: ${{ github.event.inputs.keywords }}
+        run: |
+          SCRAPER="${{ github.event.inputs.scraper }}"
+          if [ "$SCRAPER" = "all" ]; then
+            npx playwright test tests/maps_scraper.spec.ts || true
+            npx playwright test tests/linkedin_scraper.spec.ts || true
+            npx playwright test tests/bestjobs_scraper.spec.ts || true
+            npx playwright test tests/ejobs_scraper.spec.ts || true
+            npx playwright test tests/hipo_scraper.spec.ts || true
+            npx playwright test tests/merge_results.spec.ts || true
+          else
+            npx playwright test tests/${SCRAPER}_scraper.spec.ts || true
+            npx playwright test tests/merge_results.spec.ts || true
+          fi
+
+      - name: Upload results to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        working-directory: ./Scraper_App
+        run: |
+          # Upload result JSONs to Supabase Storage
+          for file in rezultate_*.json; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file..."
+              curl -X POST "$SUPABASE_URL/storage/v1/object/attachments/scraper-results/$file" \
+                -H "Authorization: Bearer $SUPABASE_KEY" \
+                -H "Content-Type: application/json" \
+                -H "x-upsert: true" \
+                --data-binary @"$file" || true
+            fi
+          done
+
+      - name: Upload artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-results
+          path: |
+            Scraper_App/rezultate_*.json
+          retention-days: 7
