@@ -867,8 +867,27 @@ async def generate(
             photo_path = os.path.join(tmp_dir, f"photo{ext}")
             with open(photo_path, "wb") as f_:
                 f_.write(pb)
+            # Compress photo — resize to max 400px and save as JPEG quality 80
+            try:
+                with PILImage.open(photo_path) as img:
+                    img.thumbnail((400, 400), PILImage.LANCZOS)
+                    compressed_path = os.path.join(tmp_dir, "photo.jpg")
+                    img.convert("RGB").save(compressed_path, "JPEG", quality=80, optimize=True)
+                    photo_path = compressed_path
+            except Exception:
+                pass  # Keep original if compression fails
         elif pdf_bytes:
             photo_path = extract_photo(pdf_bytes, tmp_dir)
+            # Compress extracted photo too
+            if photo_path:
+                try:
+                    with PILImage.open(photo_path) as img:
+                        img.thumbnail((400, 400), PILImage.LANCZOS)
+                        compressed_path = os.path.join(tmp_dir, "photo_compressed.jpg")
+                        img.convert("RGB").save(compressed_path, "JPEG", quality=80, optimize=True)
+                        photo_path = compressed_path
+                except Exception:
+                    pass
 
         original_style = None
         if theme == "original" and pdf_bytes:
