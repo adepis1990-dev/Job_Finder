@@ -87,7 +87,7 @@ jobs:
       - name: Upload results to Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         working-directory: ./Scraper_App
         run: |
           # Upload result JSONs to Supabase Storage
@@ -95,7 +95,7 @@ jobs:
             if [ -f "$file" ]; then
               echo "Uploading $file..."
               curl -X POST "$SUPABASE_URL/storage/v1/object/attachments/scraper-results/$file" \
-                -H "Authorization: Bearer $SUPABASE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
                 -H "Content-Type: application/json" \
                 -H "x-upsert: true" \
                 --data-binary @"$file" || true
