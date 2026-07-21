@@ -189,8 +189,8 @@ export default function ScraperPanel({ onLoadRecipients }) {
                   {scraping[sc.id] ? '⏳...' : '▶ Scrape'}
                 </button>
                 <button
-                  style={{ ...s.loadBtn, ...(loadingSource === sc.id || !sc.has_results ? s.btnDisabled : {}) }}
-                  disabled={loadingSource === sc.id || !sc.has_results}
+                  style={{ ...s.loadBtn, ...(loadingSource === sc.id ? s.btnDisabled : {}) }}
+                  disabled={loadingSource === sc.id}
                   onClick={() => loadSource(sc.id)}>
                   {loadingSource === sc.id ? '⏳...' : '📥 Load'}
                 </button>
