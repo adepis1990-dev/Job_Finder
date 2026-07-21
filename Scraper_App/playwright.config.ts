@@ -21,8 +21,8 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    /* Mod headed ca să vedem browser-ul */
-    headless: false,
+    /* Headless in CI (GitHub Actions), headed locally */
+    headless: !!process.env.CI,
     /* Timeout mai mare pentru acțiuni individuale */
     actionTimeout: 15_000,
     trace: 'on-first-retry',
