@@ -962,6 +962,246 @@ def health():
     return {"status": "ok"}
 
 
+# ── Gmail OAuth ───────────────────────────────────────────────────────────────
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+import base64
+from email.mime.multipart import MIMEMultipart as GmailMIMEMultipart
+from email.mime.text import MIMEText as GmailMIMEText
+from email.mime.base import MIMEBase as GmailMIMEBase
+from email import encoders as gmail_encoders
+
+GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
+GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
+GMAIL_REDIRECT_URI = os.getenv("GMAIL_REDIRECT_URI", "https://buyatree.org/gmail-callback")
+
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/userinfo.email",
+]
+
+
+@app.get("/gmail/auth-url")
+def gmail_auth_url():
+    """Generate the Google OAuth URL for Gmail authorization."""
+    if not GMAIL_CLIENT_ID or not GMAIL_CLIENT_SECRET:
+        raise HTTPException(500, "Gmail OAuth not configured. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET.")
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GMAIL_CLIENT_ID,
+                "client_secret": GMAIL_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GMAIL_REDIRECT_URI],
+            }
+        },
+        scopes=GMAIL_SCOPES,
+    )
+    flow.redirect_uri = GMAIL_REDIRECT_URI
+
+    auth_url, _ = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+        prompt="consent",
+    )
+    return {"auth_url": auth_url}
+
+
+@app.post("/gmail/callback")
+def gmail_callback(code: str = Form(...)):
+    """Exchange the OAuth authorization code for access/refresh tokens."""
+    if not GMAIL_CLIENT_ID or not GMAIL_CLIENT_SECRET:
+        raise HTTPException(500, "Gmail OAuth not configured.")
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GMAIL_CLIENT_ID,
+                "client_secret": GMAIL_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GMAIL_REDIRECT_URI],
+            }
+        },
+        scopes=GMAIL_SCOPES,
+    )
+    flow.redirect_uri = GMAIL_REDIRECT_URI
+    flow.fetch_token(code=code)
+
+    credentials = flow.credentials
+    # Get user email
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    try:
+        service = build("oauth2", "v2", credentials=credentials)
+        user_info = service.userinfo().get().execute()
+        user_email = user_info.get("email", "")
+    except Exception:
+        user_email = ""
+
+    return {
+        "access_token": credentials.token,
+        "refresh_token": credentials.refresh_token,
+        "email": user_email,
+        "expires_at": credentials.expiry.isoformat() if credentials.expiry else None,
+    }
+
+
+@app.post("/gmail/send")
+def gmail_send(
+    request: Request,
+    access_token: str = Form(...),
+    refresh_token: str = Form(None),
+    to_email: str = Form(...),
+    to_name: str = Form(""),
+    subject: str = Form("Job Application"),
+    body_html: str = Form(""),
+):
+    """Send a single email using the user's Gmail OAuth token."""
+    if not GMAIL_CLIENT_ID:
+        raise HTTPException(500, "Gmail OAuth not configured.")
+
+    creds = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=GMAIL_CLIENT_ID,
+        client_secret=GMAIL_CLIENT_SECRET,
+        scopes=GMAIL_SCOPES,
+    )
+
+    try:
+        service = build("gmail", "v1", credentials=creds)
+
+        # Build email message
+        msg = GmailMIMEMultipart()
+        msg["To"] = to_email
+        msg["Subject"] = subject.replace("{companyName}", to_name)
+
+        # Body
+        if body_html:
+            rendered = body_html.replace("{companyName}", to_name)
+            msg.attach(GmailMIMEText(rendered, "html", "utf-8"))
+        else:
+            msg.attach(GmailMIMEText(f"Hello,\n\nI am writing regarding opportunities at {to_name}.\n\nBest regards", "plain", "utf-8"))
+
+        # Attach user's CV from Supabase Storage
+        username = _get_username(request)
+        try:
+            user_attachments = db.list_attachments(username=username)
+            for att in user_attachments:
+                try:
+                    file_bytes = db.download_attachment(att["storage_path"])
+                    part = GmailMIMEBase("application", "octet-stream")
+                    part.set_payload(file_bytes)
+                    gmail_encoders.encode_base64(part)
+                    part.add_header("Content-Disposition", f"attachment; filename={att['file_name']}")
+                    msg.attach(part)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Encode and send
+        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        service.users().messages().send(
+            userId="me",
+            body={"raw": raw_message}
+        ).execute()
+
+        return {"success": True, "email": to_email}
+
+    except Exception as e:
+        raise HTTPException(500, f"Gmail send failed: {e}")
+
+
+@app.post("/gmail/send-bulk")
+def gmail_send_bulk(
+    request: Request,
+    access_token: str = Form(...),
+    refresh_token: str = Form(None),
+    recipients_json: str = Form(...),
+    subject: str = Form("Job Application"),
+    body_html: str = Form(""),
+):
+    """Send emails to multiple recipients using Gmail OAuth."""
+    import time as _time
+
+    if not GMAIL_CLIENT_ID:
+        raise HTTPException(500, "Gmail OAuth not configured.")
+
+    recipients = json.loads(recipients_json)
+    if not recipients:
+        raise HTTPException(400, "No recipients")
+
+    creds = Credentials(
+        token=access_token,
+        refresh_token=refresh_token,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=GMAIL_CLIENT_ID,
+        client_secret=GMAIL_CLIENT_SECRET,
+        scopes=GMAIL_SCOPES,
+    )
+
+    service = build("gmail", "v1", credentials=creds)
+
+    # Get user's attachments
+    username = _get_username(request)
+    attachment_files = []
+    try:
+        user_attachments = db.list_attachments(username=username)
+        for att in user_attachments:
+            try:
+                file_bytes = db.download_attachment(att["storage_path"])
+                attachment_files.append({"name": att["file_name"], "bytes": file_bytes})
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    results = []
+    for i, recip in enumerate(recipients):
+        try:
+            msg = GmailMIMEMultipart()
+            msg["To"] = recip["email"]
+            msg["Subject"] = subject.replace("{companyName}", recip.get("companyName", ""))
+
+            # Body
+            rendered = body_html.replace("{companyName}", recip.get("companyName", ""))
+            msg.attach(GmailMIMEText(rendered, "html", "utf-8"))
+
+            # Attachments
+            for att in attachment_files:
+                part = GmailMIMEBase("application", "octet-stream")
+                part.set_payload(att["bytes"])
+                gmail_encoders.encode_base64(part)
+                part.add_header("Content-Disposition", f"attachment; filename={att['name']}")
+                msg.attach(part)
+
+            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+            service.users().messages().send(userId="me", body={"raw": raw_message}).execute()
+            results.append({"email": recip["email"], "success": True})
+        except Exception as e:
+            results.append({"email": recip["email"], "success": False, "error": str(e)})
+
+        # Rate limit: 1.5s between emails
+        if i < len(recipients) - 1:
+            _time.sleep(1.5)
+
+    successful = [r for r in results if r["success"]]
+    failed = [r for r in results if not r["success"]]
+
+    return {
+        "total": len(results),
+        "sent": len(successful),
+        "failed": len(failed),
+        "results": results,
+    }
+
+
 # ── Route: attachments CRUD ───────────────────────────────────────────────────
 
 def _get_username(request: Request) -> str:
@@ -1602,16 +1842,29 @@ def get_scraper_results(name: str):
     seen = set()
     for entry in entries:
         emails = entry.get("emailuri", [])
-        for email in emails:
-            normalized = email.lower().strip()
-            if normalized in seen or normalized == "nu s-a gasit" or normalized == "nu s-a găsit":
-                continue
-            seen.add(normalized)
-            recipients.append({
-                "companyName": entry.get("nume") or entry.get("companie") or "Unknown",
-                "email": normalized,
-                "source": name,
-            })
+        # Filter out "not found" placeholder
+        valid_emails = [e for e in emails if e.lower().strip() not in ("nu s-a gasit", "nu s-a găsit")]
+        if valid_emails:
+            for email in valid_emails:
+                normalized = email.lower().strip()
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                recipients.append({
+                    "companyName": entry.get("nume") or entry.get("companie") or "Unknown",
+                    "email": normalized,
+                    "source": name,
+                })
+        else:
+            # Include company even without email (show as "no email found")
+            company = entry.get("nume") or entry.get("companie") or "Unknown"
+            if company.lower() not in seen:
+                seen.add(company.lower())
+                recipients.append({
+                    "companyName": company,
+                    "email": f"(no email found)",
+                    "source": name,
+                })
 
     return {
         "source": name,
@@ -1655,16 +1908,27 @@ def get_all_scraper_results():
             continue
         for entry in entries:
             emails = entry.get("emailuri", [])
-            for email in emails:
-                normalized = email.lower().strip()
-                if normalized in seen or normalized == "nu s-a gasit" or normalized == "nu s-a găsit":
-                    continue
-                seen.add(normalized)
-                recipients.append({
-                    "companyName": entry.get("nume") or entry.get("companie") or "Unknown",
-                    "email": normalized,
-                    "source": source_name,
-                })
+            valid_emails = [e for e in emails if e.lower().strip() not in ("nu s-a gasit", "nu s-a găsit")]
+            if valid_emails:
+                for email in valid_emails:
+                    normalized = email.lower().strip()
+                    if normalized in seen:
+                        continue
+                    seen.add(normalized)
+                    recipients.append({
+                        "companyName": entry.get("nume") or entry.get("companie") or "Unknown",
+                        "email": normalized,
+                        "source": source_name,
+                    })
+            else:
+                company = entry.get("nume") or entry.get("companie") or "Unknown"
+                if company.lower() not in seen:
+                    seen.add(company.lower())
+                    recipients.append({
+                        "companyName": company,
+                        "email": "(no email found)",
+                        "source": source_name,
+                    })
 
     return {
         "source": "all",

@@ -11,6 +11,65 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState(null)
 
+  // Gmail OAuth state
+  const [gmailConnected, setGmailConnected] = useState(false)
+  const [gmailEmail, setGmailEmail] = useState('')
+  const [gmailTokens, setGmailTokens] = useState(null)
+
+  // Check for stored Gmail tokens on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('gmail_tokens')
+    if (stored) {
+      try {
+        const tokens = JSON.parse(stored)
+        setGmailTokens(tokens)
+        setGmailConnected(true)
+        setGmailEmail(tokens.email || '')
+      } catch {}
+    }
+  }, [])
+
+  // Listen for OAuth callback message from popup
+  useEffect(() => {
+    const handler = (event) => {
+      if (event.data?.type === 'gmail-oauth-callback' && event.data.code) {
+        // Exchange code for tokens
+        const fd = new FormData()
+        fd.append('code', event.data.code)
+        fetch(`${API}/gmail/callback`, { method: 'POST', body: fd })
+          .then(r => r.json())
+          .then(tokens => {
+            setGmailTokens(tokens)
+            setGmailConnected(true)
+            setGmailEmail(tokens.email || '')
+            localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
+          })
+          .catch(e => alert('Gmail connection failed: ' + e.message))
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
+  const connectGmail = async () => {
+    try {
+      const res = await fetch(`${API}/gmail/auth-url`)
+      const { auth_url } = await res.json()
+      // Open popup for Google consent
+      const popup = window.open(auth_url, 'gmail-oauth', 'width=500,height=600,scrollbars=yes')
+      // The popup will redirect to our callback page which posts message back
+    } catch (e) {
+      alert('Could not start Gmail connection: ' + e.message)
+    }
+  }
+
+  const disconnectGmail = () => {
+    setGmailConnected(false)
+    setGmailEmail('')
+    setGmailTokens(null)
+    localStorage.removeItem('gmail_tokens')
+  }
+
   const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}` }
 
   const loadData = () => {
@@ -98,10 +157,32 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
     setSending(true)
     setSendResult(null)
     try {
-      const res = await fetch(`${API}/send-emails?test_mode=${testMode}`, { method: 'POST', headers: authHeaders })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.detail || 'Eroare la trimitere')
-      setSendResult(result)
+      if (gmailConnected && gmailTokens) {
+        // Send via Gmail OAuth
+        const recipients = testMode
+          ? [{ email: gmailEmail, companyName: 'your company' }]
+          : data.recipients.filter(r => r.email && !r.email.includes('no email found'))
+
+        const fd = new FormData()
+        fd.append('access_token', gmailTokens.access_token)
+        if (gmailTokens.refresh_token) fd.append('refresh_token', gmailTokens.refresh_token)
+        fd.append('recipients_json', JSON.stringify(recipients))
+        fd.append('subject', data.subject || 'Job Application')
+        fd.append('body_html', data.body_html || '')
+
+        const res = await fetch(`${API}/gmail/send-bulk`, {
+          method: 'POST', body: fd, headers: authHeaders
+        })
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.detail || 'Gmail send failed')
+        setSendResult(result)
+      } else {
+        // Fallback: SMTP send
+        const res = await fetch(`${API}/send-emails?test_mode=${testMode}`, { method: 'POST', headers: authHeaders })
+        const result = await res.json()
+        if (!res.ok) throw new Error(result.detail || 'Send failed')
+        setSendResult(result)
+      }
     } catch (e) {
       setSendResult({ error: e.message })
     } finally {
@@ -125,8 +206,22 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
       <div style={s.header}>
         <h2 style={s.title}>📧 Email Preview</h2>
         <span style={s.badge}>
-          {data.configured ? '✓ Configured' : '⚠ Not configured'}
+          {gmailConnected ? `✓ ${gmailEmail}` : data.configured ? '✓ Configured' : '⚠ Not configured'}
         </span>
+      </div>
+
+      {/* Gmail connect */}
+      <div style={s.gmailSection}>
+        {gmailConnected ? (
+          <div style={s.gmailConnected}>
+            <span style={s.gmailLabel}>📨 Sending as <strong>{gmailEmail}</strong></span>
+            <button style={s.gmailDisconnect} onClick={disconnectGmail}>Disconnect</button>
+          </div>
+        ) : (
+          <button style={s.gmailConnect} onClick={connectGmail}>
+            Connect Gmail
+          </button>
+        )}
       </div>
 
       {/* Config section */}
@@ -404,5 +499,25 @@ const s = {
   sendSuccess: {
     background: '#f0fff4', border: '1px solid #9ae6b4', borderRadius: 8,
     padding: '10px 12px', color: '#276749', fontSize: '12px', fontWeight: 600,
+  },
+  gmailSection: {
+    padding: '10px 20px', borderBottom: '1px solid #f0f0f0',
+    display: 'flex', alignItems: 'center',
+  },
+  gmailConnect: {
+    padding: '8px 16px', borderRadius: 8, border: 'none',
+    background: '#4285f4', color: '#fff', fontSize: '12px',
+    fontWeight: 600, cursor: 'pointer', width: '100%',
+  },
+  gmailConnected: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    width: '100%', gap: 8,
+  },
+  gmailLabel: {
+    fontSize: '12px', color: '#276749',
+  },
+  gmailDisconnect: {
+    padding: '4px 10px', borderRadius: 4, border: '1px solid #feb2b2',
+    background: 'none', color: '#e53e3e', fontSize: '11px', cursor: 'pointer',
   },
 }

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head><title>Gmail Connected</title></head>
+<body>
+<p>Connecting Gmail...</p>
+<script>
+  // Extract the authorization code from URL params
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (code && window.opener) {
+    window.opener.postMessage({ type: 'gmail-oauth-callback', code: code }, '*');
+    document.body.innerHTML = '<p>Gmail connected! You can close this window.</p>';
+    setTimeout(() => window.close(), 2000);
+  } else {
+    document.body.innerHTML = '<p>Error: No authorization code received.</p>';
+  }
+</script>
+</body>
+</html>
