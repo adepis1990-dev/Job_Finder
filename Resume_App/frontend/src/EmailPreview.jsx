@@ -27,6 +27,28 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
         setGmailEmail(tokens.email || '')
       } catch {}
     }
+
+    // Check if returning from Gmail OAuth redirect
+    const urlParams = new URLSearchParams(window.location.search)
+    const gmailCode = urlParams.get('gmail_code')
+    if (gmailCode) {
+      // Exchange code for tokens
+      const fd = new FormData()
+      fd.append('code', gmailCode)
+      fetch(`${API}/gmail/callback`, { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(tokens => {
+          if (tokens.access_token) {
+            setGmailTokens(tokens)
+            setGmailConnected(true)
+            setGmailEmail(tokens.email || '')
+            localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
+          }
+        })
+        .catch(() => {})
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   const connectGmail = async () => {

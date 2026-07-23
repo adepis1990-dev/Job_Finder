@@ -4,34 +4,16 @@
 <body>
 <p>Connecting your Gmail account...</p>
 <script>
-  const API = window.location.hostname === 'localhost'
-    ? 'http://localhost:8000'
-    : 'https://jobfinder-production-f66a.up.railway.app';
-
+  // Just redirect back to the main app with the code in URL
+  // The React app will handle the token exchange
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
+  const error = params.get('error');
 
   if (code) {
-    const fd = new FormData();
-    fd.append('code', code);
-
-    fetch(API + '/gmail/callback', { method: 'POST', body: fd })
-      .then(r => r.json())
-      .then(tokens => {
-        if (tokens.access_token) {
-          localStorage.setItem('gmail_tokens', JSON.stringify(tokens));
-          document.body.innerHTML = '<p>Gmail connected! Redirecting...</p>';
-          setTimeout(() => { window.location.href = '/'; }, 1000);
-        } else {
-          document.body.innerHTML = '<p>Error: ' + JSON.stringify(tokens) + '</p>';
-        }
-      })
-      .catch(e => {
-        document.body.innerHTML = '<p>Connection failed: ' + e.message + '</p>';
-      });
+    window.location.href = '/?gmail_code=' + encodeURIComponent(code);
   } else {
-    const error = params.get('error');
-    document.body.innerHTML = '<p>Error: ' + (error || 'No authorization code received.') + '</p>';
+    window.location.href = '/?gmail_error=' + encodeURIComponent(error || 'unknown');
   }
 </script>
 </body>
