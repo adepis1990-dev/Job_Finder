@@ -251,11 +251,6 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
               {cfg.icon} {cfg.label}
             </button>
           ))}
-          {/* history button */}
-          <button type="button" style={{ ...s.tab, ...s.tabOff, marginLeft: 'auto' }}
-            onClick={() => setHistOpen(h => !h)}>
-            🕓 History
-          </button>
         </div>
 
         {/* Mode banner — shown when editing a saved doc */}
