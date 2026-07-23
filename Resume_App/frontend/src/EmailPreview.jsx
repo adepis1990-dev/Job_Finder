@@ -29,37 +29,18 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
     }
   }, [])
 
-  // Listen for OAuth callback message from popup
-  useEffect(() => {
-    const handler = (event) => {
-      if (event.data?.type === 'gmail-oauth-callback' && event.data.code) {
-        // Exchange code for tokens
-        const fd = new FormData()
-        fd.append('code', event.data.code)
-        fetch(`${API}/gmail/callback`, { method: 'POST', body: fd })
-          .then(r => r.json())
-          .then(tokens => {
-            setGmailTokens(tokens)
-            setGmailConnected(true)
-            setGmailEmail(tokens.email || '')
-            localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
-          })
-          .catch(e => alert('Gmail connection failed: ' + e.message))
-      }
-    }
-    window.addEventListener('message', handler)
-    return () => window.removeEventListener('message', handler)
-  }, [])
-
   const connectGmail = async () => {
     try {
-      const res = await fetch(`${API}/gmail/auth-url`)
-      const { auth_url } = await res.json()
-      // Open popup for Google consent
-      const popup = window.open(auth_url, 'gmail-oauth', 'width=500,height=600,scrollbars=yes')
-      // The popup will redirect to our callback page which posts message back
+      const res = await fetch(`${API}/gmail/auth-url`, { headers: authHeaders })
+      const data = await res.json()
+      if (data.auth_url) {
+        // Redirect in same window (not popup) to avoid cross-origin issues
+        window.location.href = data.auth_url
+      } else {
+        alert('Could not get Gmail auth URL')
+      }
     } catch (e) {
-      alert('Could not start Gmail connection: ' + e.message)
+      alert('Gmail connection failed: ' + e.message)
     }
   }
 

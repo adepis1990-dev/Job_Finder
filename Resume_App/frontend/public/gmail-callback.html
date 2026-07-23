@@ -1,18 +1,37 @@
 <!DOCTYPE html>
 <html>
-<head><title>Gmail Connected</title></head>
+<head><title>Connecting Gmail...</title></head>
 <body>
-<p>Connecting Gmail...</p>
+<p>Connecting your Gmail account...</p>
 <script>
-  // Extract the authorization code from URL params
+  const API = window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : 'https://jobfinder-production-f66a.up.railway.app';
+
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  if (code && window.opener) {
-    window.opener.postMessage({ type: 'gmail-oauth-callback', code: code }, '*');
-    document.body.innerHTML = '<p>Gmail connected! You can close this window.</p>';
-    setTimeout(() => window.close(), 2000);
+
+  if (code) {
+    const fd = new FormData();
+    fd.append('code', code);
+
+    fetch(API + '/gmail/callback', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(tokens => {
+        if (tokens.access_token) {
+          localStorage.setItem('gmail_tokens', JSON.stringify(tokens));
+          document.body.innerHTML = '<p>Gmail connected! Redirecting...</p>';
+          setTimeout(() => { window.location.href = '/'; }, 1000);
+        } else {
+          document.body.innerHTML = '<p>Error: ' + JSON.stringify(tokens) + '</p>';
+        }
+      })
+      .catch(e => {
+        document.body.innerHTML = '<p>Connection failed: ' + e.message + '</p>';
+      });
   } else {
-    document.body.innerHTML = '<p>Error: No authorization code received.</p>';
+    const error = params.get('error');
+    document.body.innerHTML = '<p>Error: ' + (error || 'No authorization code received.') + '</p>';
   }
 </script>
 </body>
