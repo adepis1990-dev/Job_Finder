@@ -147,7 +147,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(401, f"Invalid token: {e}")
 
 # Public routes that don't need auth
-PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/auth/login", "/auth/me"}
+PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/auth/login", "/auth/me", "/gmail/auth-url", "/gmail/callback"}
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -943,7 +943,8 @@ async def generate(
                 document_id=saved["id"],
                 username=username,
             )
-        except Exception:
+        except Exception as upload_err:
+            print(f"[WARN] Attachment upload failed: {upload_err}")
             pass  # Don't fail the request if upload fails
 
         resp = FileResponse(out_path, media_type="application/pdf", filename=fname)

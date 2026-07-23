@@ -206,7 +206,7 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
       <div style={s.header}>
         <h2 style={s.title}>📧 Email Preview</h2>
         <span style={s.badge}>
-          {gmailConnected ? `✓ ${gmailEmail}` : data.configured ? '✓ Configured' : '⚠ Not configured'}
+          {gmailConnected ? `✓ ${gmailEmail}` : data.configured ? '✓ Configured' : '⚠ Connect Gmail to send'}
         </span>
       </div>
 
@@ -228,11 +228,13 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
       <div style={s.section}>
         <div style={s.fieldRow}>
           <span style={s.fieldLabel}>From:</span>
-          <span style={s.fieldValue}>{data.from_name} &lt;{data.from_email}&gt;</span>
+          <span style={s.fieldValue}>
+            {gmailConnected ? gmailEmail : (data.from_name ? `${data.from_name} <${data.from_email}>` : '—')}
+          </span>
         </div>
         <div style={s.fieldRow}>
           <span style={s.fieldLabel}>Subject:</span>
-          <span style={s.fieldValue}>{data.subject || '—'}</span>
+          <span style={s.fieldValue}>{data.subject || 'Job Application'}</span>
         </div>
       </div>
 
@@ -335,12 +337,12 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
       {/* Send buttons */}
       <div style={s.sendSection}>
         <button style={s.sendTestBtn}
-          disabled={sending || !data.configured}
+          disabled={sending || (!data.configured && !gmailConnected)}
           onClick={() => handleSendEmails(true)}>
           {sending ? '⏳...' : '🧪 Test (to self)'}
         </button>
         <button style={s.sendAllBtn}
-          disabled={sending || !data.configured || data.total_recipients === 0}
+          disabled={sending || (!data.configured && !gmailConnected) || data.total_recipients === 0}
           onClick={() => handleSendEmails(false)}>
           {sending ? '⏳ Sending...' : `📤 Send ${data.total_recipients} emails`}
         </button>
