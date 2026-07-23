@@ -27,42 +27,38 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
         setGmailEmail(tokens.email || '')
       } catch {}
     }
-
-    // Check if returning from Gmail OAuth redirect
-    const urlParams = new URLSearchParams(window.location.search)
-    const gmailCode = urlParams.get('gmail_code')
-    if (gmailCode) {
-      // Exchange code for tokens
-      const fd = new FormData()
-      fd.append('code', gmailCode)
-      fetch(`${API}/gmail/callback`, { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(tokens => {
-          if (tokens.access_token) {
-            setGmailTokens(tokens)
-            setGmailConnected(true)
-            setGmailEmail(tokens.email || '')
-            localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
-          }
-        })
-        .catch(() => {})
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname)
-    }
   }, [])
 
   const connectGmail = async () => {
     try {
       const res = await fetch(`${API}/gmail/auth-url`, { headers: authHeaders })
       const data = await res.json()
-      if (data.auth_url) {
-        // Redirect in same window (not popup) to avoid cross-origin issues
-        window.location.href = data.auth_url
-      } else {
-        alert('Could not get Gmail auth URL')
-      }
+      if (!data.auth_url) throw new Error('No auth URL returned')
+
+      // Open popup
+      const popup = window.open(data.auth_url, 'gmail-oauth', 'width=500,height=600,scrollbars=yes,location=yes')
+
+      // Poll localStorage for the token (set by gmail-callback.html)
+      const pollInterval = setInterval(() => {
+        const done = localStorage.getItem('gmail_oauth_done')
+        const stored = localStorage.getItem('gmail_tokens')
+        if (done && stored) {
+          localStorage.removeItem('gmail_oauth_done')
+          clearInterval(pollInterval)
+          try {
+            const tokens = JSON.parse(stored)
+            setGmailTokens(tokens)
+            setGmailConnected(true)
+            setGmailEmail(tokens.email || '')
+          } catch {}
+          if (popup && !popup.closed) popup.close()
+        }
+      }, 500)
+
+      // Stop polling after 3 minutes
+      setTimeout(() => clearInterval(pollInterval), 180000)
     } catch (e) {
-      alert('Gmail connection failed: ' + e.message)
+      alert('Could not start Gmail connection: ' + e.message)
     }
   }
 
