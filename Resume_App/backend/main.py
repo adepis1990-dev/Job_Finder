@@ -147,7 +147,7 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
         raise HTTPException(401, f"Invalid token: {e}")
 
 # Public routes that don't need auth
-PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/auth/login", "/auth/me", "/gmail/auth-url", "/gmail/callback"}
+PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc", "/auth/login", "/auth/me", "/gmail/auth-url", "/gmail/callback", "/gmail/oauth-redirect"}
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
@@ -975,7 +975,7 @@ from email import encoders as gmail_encoders
 
 GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
-GMAIL_REDIRECT_URI = os.getenv("GMAIL_REDIRECT_URI", "https://buyatree.org/gmail-callback")
+GMAIL_REDIRECT_URI = os.getenv("GMAIL_REDIRECT_URI", "https://jobfinder-production-f66a.up.railway.app/gmail/oauth-redirect")
 
 GMAIL_SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
@@ -1049,6 +1049,56 @@ def gmail_callback(code: str = Form(...)):
         "email": user_email,
         "expires_at": credentials.expiry.isoformat() if credentials.expiry else None,
     }
+
+
+@app.get("/gmail/oauth-redirect")
+def gmail_oauth_redirect(code: str = None, error: str = None):
+    """Google redirects here after user authorizes. Exchanges code and redirects to frontend."""
+    from fastapi.responses import RedirectResponse
+    import urllib.parse
+
+    if error:
+        return RedirectResponse(url=f"https://buyatree.org/?gmail_error={error}")
+
+    if not code:
+        return RedirectResponse(url="https://buyatree.org/?gmail_error=no_code")
+
+    try:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": GMAIL_CLIENT_ID,
+                    "client_secret": GMAIL_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [GMAIL_REDIRECT_URI],
+                }
+            },
+            scopes=GMAIL_SCOPES,
+        )
+        flow.redirect_uri = GMAIL_REDIRECT_URI
+        flow.fetch_token(code=code)
+
+        credentials = flow.credentials
+
+        # Get user email
+        try:
+            service = build("oauth2", "v2", credentials=credentials)
+            user_info = service.userinfo().get().execute()
+            user_email = user_info.get("email", "")
+        except Exception:
+            user_email = ""
+
+        # Redirect back to frontend with tokens as URL params
+        params = urllib.parse.urlencode({
+            "gmail_token": credentials.token,
+            "gmail_refresh": credentials.refresh_token or "",
+            "gmail_email": user_email,
+        })
+        return RedirectResponse(url=f"https://buyatree.org/?{params}")
+
+    except Exception as e:
+        return RedirectResponse(url=f"https://buyatree.org/?gmail_error={urllib.parse.quote(str(e))}")
 
 
 @app.post("/gmail/send")

@@ -27,6 +27,24 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
         setGmailEmail(tokens.email || '')
       } catch {}
     }
+
+    // Check URL for gmail tokens (returned from OAuth redirect)
+    const urlParams = new URLSearchParams(window.location.search)
+    const gmailToken = urlParams.get('gmail_token')
+    const gmailEmail2 = urlParams.get('gmail_email')
+    if (gmailToken) {
+      const tokens = {
+        access_token: gmailToken,
+        refresh_token: urlParams.get('gmail_refresh') || '',
+        email: gmailEmail2 || '',
+      }
+      setGmailTokens(tokens)
+      setGmailConnected(true)
+      setGmailEmail(gmailEmail2 || '')
+      localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
   }, [])
 
   const connectGmail = async () => {
@@ -35,23 +53,42 @@ export default function EmailPreview({ refreshKey, loadedRecipients }) {
       const data = await res.json()
       if (!data.auth_url) throw new Error('No auth URL returned')
 
-      // Open popup
+      // Open popup - Google will redirect to Railway, then Railway redirects to buyatree.org with tokens
       const popup = window.open(data.auth_url, 'gmail-oauth', 'width=500,height=600,scrollbars=yes,location=yes')
 
-      // Poll localStorage for the token (set by gmail-callback.html)
+      // Poll popup URL for our domain (means redirect completed)
       const pollInterval = setInterval(() => {
-        const done = localStorage.getItem('gmail_oauth_done')
-        const stored = localStorage.getItem('gmail_tokens')
-        if (done && stored) {
-          localStorage.removeItem('gmail_oauth_done')
-          clearInterval(pollInterval)
-          try {
-            const tokens = JSON.parse(stored)
+        try {
+          if (!popup || popup.closed) {
+            clearInterval(pollInterval)
+            // Check if tokens were stored
+            const stored = localStorage.getItem('gmail_tokens')
+            if (stored) {
+              const tokens = JSON.parse(stored)
+              setGmailTokens(tokens)
+              setGmailConnected(true)
+              setGmailEmail(tokens.email || '')
+            }
+            return
+          }
+          // Check if popup URL has gmail_token param (it landed on our domain)
+          const popupUrl = popup.location.href
+          if (popupUrl && popupUrl.includes('gmail_token=')) {
+            const params = new URLSearchParams(popup.location.search)
+            const tokens = {
+              access_token: params.get('gmail_token'),
+              refresh_token: params.get('gmail_refresh') || '',
+              email: params.get('gmail_email') || '',
+            }
             setGmailTokens(tokens)
             setGmailConnected(true)
             setGmailEmail(tokens.email || '')
-          } catch {}
-          if (popup && !popup.closed) popup.close()
+            localStorage.setItem('gmail_tokens', JSON.stringify(tokens))
+            popup.close()
+            clearInterval(pollInterval)
+          }
+        } catch {
+          // Cross-origin access error - popup still on Google's domain, keep polling
         }
       }, 500)
 
