@@ -978,6 +978,7 @@ GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
 GMAIL_REDIRECT_URI = os.getenv("GMAIL_REDIRECT_URI", "https://jobfinder-production-f66a.up.railway.app/gmail/oauth-redirect")
 
 GMAIL_SCOPES = [
+    "openid",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/userinfo.email",
 ]
