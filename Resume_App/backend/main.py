@@ -875,63 +875,22 @@ async def generate(
         user_parts.append(f"Edit instruction: {prompt}" if is_edit else f"Instructions: {prompt}")
         user_content = "\n\n".join(user_parts)
 
-        # ── "No Template" mode: in-place PDF text editing ─────────────────────
+        # ── "No Template" mode: keep original PDF as-is ────────────────────────
         if theme == "none" and pdf_bytes:
-            # Use AI to get the replacement instructions, then apply them in-place
-            inplace_prompt = (
-                "You are a text editor for a PDF document. The user wants to modify the document.\n"
-                "Return ONLY a JSON array of replacements in this format:\n"
-                '[ {"find": "exact old text", "replace": "new text"} ]\n'
-                "Each 'find' must be an EXACT substring from the source document.\n"
-                "If text should be removed, set 'replace' to empty string.\n"
-                "If text should be added after a specific line, find that line and replace it with itself + the new text.\n"
-                "Return ONLY valid JSON, no markdown, no explanation."
-            )
-            inplace_user = f"Source document:\n{extracted}\n\nUser instruction: {prompt}"
-
-            try:
-                ai_resp = ai_generate(inplace_prompt, inplace_user)
-                # Parse replacements
-                replacements = json.loads(ai_resp.strip())
-                if not isinstance(replacements, list):
-                    replacements = []
-            except Exception:
-                replacements = []
-
-            # Apply replacements directly in PDF using PyMuPDF
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            for repl in replacements:
-                old_text = repl.get("find", "")
-                new_text = repl.get("replace", "")
-                if not old_text:
-                    continue
-                for page in doc:
-                    # Search and replace text in-place
-                    text_instances = page.search_for(old_text)
-                    if text_instances:
-                        for inst in text_instances:
-                            # Redact (white out) the old text
-                            page.add_redact_annot(inst, fill=(1, 1, 1))
-                        page.apply_redactions()
-                        # Insert new text at the same position
-                        if new_text:
-                            for inst in text_instances:
-                                # Get font size from the area
-                                fs = max(8, min(inst.height * 0.8, 14))
-                                page.insert_text(
-                                    (inst.x0, inst.y0 + inst.height * 0.8),
-                                    new_text,
-                                    fontsize=fs,
-                                    color=(0, 0, 0),
-                                )
-                                break  # Only insert once per replacement
-
+            # Just save the original PDF without any modifications
             out_path = os.path.join(tmp_dir, "output.pdf")
-            doc.save(out_path)
-            doc.close()
+            with open(out_path, "wb") as f_out:
+                f_out.write(pdf_bytes)
 
-            # Still persist to DB
-            plain_for_db = extracted
+            # Extract text for DB storage
+            plain_for_db = ""
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for page in pdf.pages:
+                    pt = page.extract_text()
+                    if pt:
+                        plain_for_db += pt + "\n"
+
+            # Persist to DB
             record = {
                 "type": doc_type, "title": title, "content": plain_for_db,
                 "content_json": json.dumps({"meta": meta, "blocks": []}),
@@ -940,12 +899,10 @@ async def generate(
             }
             saved = db.update_document(doc_id, record) if doc_id else db.create_document(record)
 
-            # Upload modified PDF
+            # Upload as attachment
             fname = {"resume": "Resume", "portfolio": "Portfolio",
                      "letter": "Cover_Letter"}.get(doc_type, "Document") + ".pdf"
             try:
-                with open(out_path, "rb") as pdf_file:
-                    pdf_bytes_out = pdf_file.read()
                 safe_title = re.sub(r'[^\w\s\-]', '', title).strip().replace(' ', '_')
                 attachment_name = f"{safe_title}.pdf" if safe_title else fname
                 username = _get_username(request)
@@ -953,9 +910,9 @@ async def generate(
                 os.makedirs(output_dir, exist_ok=True)
                 local_path = os.path.join(output_dir, attachment_name)
                 with open(local_path, "wb") as lf:
-                    lf.write(pdf_bytes_out)
+                    lf.write(pdf_bytes)
                 db.upload_attachment(
-                    file_bytes=pdf_bytes_out, file_name=attachment_name,
+                    file_bytes=pdf_bytes, file_name=attachment_name,
                     file_type="cv", document_id=saved["id"], username=username,
                 )
             except Exception as upload_err:
