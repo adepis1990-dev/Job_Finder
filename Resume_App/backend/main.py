@@ -874,6 +874,8 @@ async def generate(
 
     system_prompt = (uc[doc_type].get("edit_system_prompt", tone_cfg["system_prompt"])
                      if is_edit else tone_cfg["system_prompt"])
+    # Always preserve URLs, emails, phone numbers, and links exactly as provided
+    system_prompt += "\n\nIMPORTANT: Preserve ALL URLs, email addresses, phone numbers, and links EXACTLY as provided in the source document. Do NOT shorten, modify, or remove any URLs (including LinkedIn, portfolio, or personal website links). Include them in the contact/header section."
 
     user_parts: list[str] = []
     if extra:
