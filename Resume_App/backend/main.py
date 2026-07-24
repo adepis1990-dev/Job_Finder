@@ -913,7 +913,8 @@ async def generate(
                     base_doc = text_to_doc(existing["content"], meta)
 
         elif file and file.filename:
-            pdf_bytes = await file.read()
+            if not pdf_bytes:
+                pdf_bytes = await file.read()
             extracted = ""
             with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
                 for page in pdf.pages:
