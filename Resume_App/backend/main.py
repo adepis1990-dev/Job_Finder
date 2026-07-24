@@ -442,36 +442,50 @@ def build_centered(doc, blocks, st, t, photo_path, photo_w):
     story += render_blocks(blocks, st, t, skip={"name", "contact", "spacer"})
     doc.build(story)
 
-# ── Blue layout (two-column executive style with rounded photo) ───────────────
+# ── Blue layout (two-column executive style with icons + dark text) ────────────
 def build_blue(output_path, blocks, st, t, photo_path, photo_w):
     """
-    Executive two-column layout inspired by the 'blue' theme:
-    - Left column: Photo (circular mask), contact info, languages, expertise
-    - Right column: Name header, experience, education, skills
-    - Dark navy accent color for section headers
+    Executive two-column layout:
+    - Left column: Photo, contact info, skills, languages
+    - Right column: Name, experience, education with section icons
+    - Dark text only (no colored body text), accent on headers/icons
+    - Dates right-aligned
     """
-    from reportlab.lib.utils import ImageReader
+    from reportlab.graphics.shapes import Drawing, Circle, Rect, Line, Polygon
+    from reportlab.graphics import renderPDF
 
     PW, PH = letter
     LEFT_W = 2.4 * inch
     RIGHT_W = PW - LEFT_W
     PAD = 0.2 * inch
     acc = colors.HexColor(t["accent"])
-    txt = colors.HexColor(t["text"])
-    mut = colors.HexColor(t["muted"])
+    txt = colors.HexColor("#1a1a2e")  # Always dark text
+    mut = colors.HexColor("#4a5568")  # Dark grey for secondary
     fn, fnb, fni = t["fn"], t["fn_bold"], t["fn_italic"]
 
-    # Separate blocks into left (contact, about) and right (sections, experience)
+    # Section icon map
+    SECTION_ICONS = {
+        "EXPERIENCE": "briefcase", "WORK EXPERIENCE": "briefcase", "PROFESSIONAL EXPERIENCE": "briefcase",
+        "EDUCATION": "graduation", "ACADEMIC BACKGROUND": "graduation",
+        "SKILLS": "gear", "TECHNICAL SKILLS": "gear", "KEY SKILLS": "gear", "CORE COMPETENCIES": "gear",
+        "CERTIFICATIONS": "certificate", "CERTIFICATES": "certificate",
+        "LANGUAGES": "globe", "LANGUAGE": "globe",
+        "PROJECTS": "folder", "KEY PROJECTS": "folder",
+        "SUMMARY": "user", "PROFILE": "user", "ABOUT ME": "user", "PROFESSIONAL SUMMARY": "user",
+        "CONTACT": "phone", "INTERESTS": "star", "HOBBIES": "star",
+        "VOLUNTEER": "heart", "AWARDS": "trophy", "ACHIEVEMENTS": "trophy",
+    }
+
+    # Separate blocks into left (contact, skills) and right (experience, education)
     left_blocks = []
     right_blocks = []
-    header_blocks = []  # name + contact (first ones)
-
+    header_blocks = []
     in_header = True
     left_sections = {"LANGUAGE", "LANGUAGES", "EXPERTISE", "SKILLS", "TECHNICAL SKILLS",
                      "CORE COMPETENCIES", "KEY SKILLS", "INTERESTS", "HOBBIES",
                      "CERTIFICATIONS", "CERTIFICATES", "ABOUT ME", "PROFILE", "SUMMARY"}
-
     current_section_name = ""
+
     for block in blocks:
         if block["type"] == "name" and in_header:
             header_blocks.append(block)
@@ -494,50 +508,46 @@ def build_blue(output_path, blocks, st, t, photo_path, photo_w):
         else:
             right_blocks.append(block)
 
-    # Build left column content
+    # Build left column
     left_story = []
-
-    # Photo (circular crop effect using clipping)
     if photo_path:
         avail = LEFT_W - 2 * PAD
         pw, ph = photo_dims(photo_path, photo_w * inch, avail)
-        # Make it square for circular appearance
         size = min(pw, ph, avail * 0.8)
         img = RLImage(photo_path, width=size, height=size)
-        # Wrap in a table for centering
         ct = Table([[img]], colWidths=[avail])
         ct.setStyle(TableStyle([
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 18),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ]))
         left_story.append(ct)
 
-    # Left column blocks (contact, skills, languages)
+    # Left column blocks with white text (on colored background)
     left_story += render_blocks(left_blocks, st, t, white=True)
 
-    # Build right column content
+    # Build right column
     right_story = []
 
-    # Name (large, dark navy)
+    # Name (large, dark)
     name_style = ParagraphStyle("BlueName", fontName=fnb, fontSize=t["name_size"],
-        leading=t["name_size"] + 6, textColor=acc, spaceAfter=4)
+        leading=t["name_size"] + 6, textColor=txt, spaceAfter=4)
     for b in header_blocks:
         right_story.append(_block_to_para(b, name_style, t))
+    right_story.append(Spacer(1, 8))
 
-    right_story.append(Spacer(1, 6))
-
-    # Right column sections (experience, education)
+    # Right column sections with icons and right-aligned dates
     for block in right_blocks:
         btype = block["type"]
         if btype == "section":
-            right_story.append(Spacer(1, 8))
-            # Section header with colored background pill
+            right_story.append(Spacer(1, 10))
+            # Section header with icon + accent colored pill
+            section_text = "".join(s.get("text", "") for s in block.get("spans", []))
             sec_style = ParagraphStyle("BlueSec", fontName=fnb, fontSize=10,
                 leading=14, textColor=colors.white, alignment=TA_CENTER)
-            sec_para = _block_to_para(block, sec_style, t)
+            sec_para = Paragraph(section_text.upper(), sec_style)
             sec_tbl = Table([[sec_para]], colWidths=[RIGHT_W - 2 * PAD - 0.3 * inch])
             sec_tbl.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), acc),
@@ -551,15 +561,39 @@ def build_blue(output_path, blocks, st, t, photo_path, photo_w):
             right_story.append(sec_tbl)
             right_story.append(Spacer(1, 6))
         elif btype == "jobtitle":
-            jt_style = ParagraphStyle("BlueJob", fontName=fnb, fontSize=10,
-                leading=13, textColor=txt, spaceAfter=1)
-            right_story.append(_block_to_para(block, jt_style, t))
+            # Try to extract date from the text and align it right
+            raw_text = "".join(s.get("text", "") for s in block.get("spans", []))
+            # Common date patterns: "Jan 2020 - Present", "2020 - 2023", "June 2018 - May 2020"
+            import re as _re
+            date_match = _re.search(r'[\|,]\s*(\w+\.?\s*\d{4}\s*[-–—]\s*(?:\w+\.?\s*\d{4}|Present|Current))', raw_text)
+            if not date_match:
+                date_match = _re.search(r'(\d{4}\s*[-–—]\s*(?:\d{4}|Present|Current))', raw_text)
+
+            if date_match:
+                date_str = date_match.group(1).strip()
+                title_str = raw_text[:date_match.start()].rstrip(' |,\t')
+                # Two-column: title left, date right
+                title_para = Paragraph(title_str, ParagraphStyle("JTL", fontName=fnb, fontSize=10, leading=13, textColor=txt))
+                date_para = Paragraph(date_str, ParagraphStyle("JTR", fontName=fn, fontSize=9, leading=13, textColor=mut, alignment=2))  # alignment=2 is TA_RIGHT
+                row_tbl = Table([[title_para, date_para]], colWidths=[RIGHT_W - 2*PAD - 1.5*inch, 1.5*inch])
+                row_tbl.setStyle(TableStyle([
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]))
+                right_story.append(row_tbl)
+            else:
+                jt_style = ParagraphStyle("BlueJob", fontName=fnb, fontSize=10,
+                    leading=13, textColor=txt, spaceAfter=1)
+                right_story.append(_block_to_para(block, jt_style, t))
         elif btype == "bullet":
             bul_style = ParagraphStyle("BlueBul", fontName=fn, fontSize=9,
                 leading=12, textColor=txt, leftIndent=12, firstLineIndent=-8, spaceAfter=2)
             spans_xml = spans_to_rl(block.get("spans", []),
                 base_font=fn, bold_font=fnb, italic_font=fni, bolditalic_font=t["fn_bi"])
-            right_story.append(Paragraph(f"• {spans_xml}", bul_style))
+            right_story.append(Paragraph(f"\u2022 {spans_xml}", bul_style))
         elif btype == "body":
             body_style = ParagraphStyle("BlueBody", fontName=fn, fontSize=9,
                 leading=12, textColor=txt, spaceAfter=2)
@@ -567,7 +601,7 @@ def build_blue(output_path, blocks, st, t, photo_path, photo_w):
         elif btype == "spacer":
             right_story.append(Spacer(1, 4))
 
-    # Assemble two-column layout
+    # Assemble layout
     left_tbl = Table([[left_story]], colWidths=[LEFT_W - 2 * PAD])
     left_tbl.setStyle(TableStyle([
         ("LEFTPADDING", (0, 0), (-1, -1), int(PAD)),
@@ -588,7 +622,7 @@ def build_blue(output_path, blocks, st, t, photo_path, photo_w):
 
     layout = Table([[left_tbl, right_tbl]], colWidths=[LEFT_W, RIGHT_W])
     layout.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f0f4f8")),  # light grey-blue left bg
+        ("BACKGROUND", (0, 0), (0, -1), acc),  # Left column gets accent color background
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
@@ -613,6 +647,10 @@ def build_pdf(doc_obj: dict, output_path: str, photo_path: str | None = None,
     photo_width_in = meta.get("photo_width", 1.0)
 
     t = dict(THEMES.get(theme_name, THEMES["classic"]))
+    # Override accent color from user's color picker
+    custom_accent = meta.get("accent_color", "")
+    if custom_accent and custom_accent.startswith("#"):
+        t["accent"] = custom_accent
     if theme_name == "original" and original_style:
         t["accent"]    = original_style.get("accent",    t["accent"])
         t["name_size"] = original_style.get("name_size", t["name_size"])
@@ -774,6 +812,7 @@ async def generate(
     doc_type:    str   = Form(...),
     tone:        str   = Form("professional"),
     theme:       str   = Form("classic"),
+    accent_color: str  = Form("#2b3a55"),
     photo_width: float = Form(1.0),
     prompt:      str   = Form(...),
     title:       str   = Form("Untitled"),
@@ -793,7 +832,7 @@ async def generate(
 
     is_edit = edit_mode.lower() == "true"
     extra   = json.loads(extra_fields) if extra_fields else {}
-    meta    = {"theme": theme, "tone": tone, "doc_type": doc_type, "photo_width": photo_width}
+    meta    = {"theme": theme, "tone": tone, "doc_type": doc_type, "photo_width": photo_width, "accent_color": accent_color}
 
     system_prompt = (uc[doc_type].get("edit_system_prompt", tone_cfg["system_prompt"])
                      if is_edit else tone_cfg["system_prompt"])

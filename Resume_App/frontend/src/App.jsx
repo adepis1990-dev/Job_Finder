@@ -114,6 +114,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
   const [docType,  setDocType]      = useState('resume')
   const [tone,     setTone]         = useState('professional')
   const [theme,    setTheme]        = useState('classic')
+  const [accentColor, setAccentColor] = useState('#2b3a55')
   const [photoWidth, setPhotoWidth] = useState(1.0)
   const [prompt,   setPrompt]       = useState('')
   const [title,    setTitle]        = useState('')
@@ -191,6 +192,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
     fd.append('doc_type', docType)
     fd.append('tone', tone)
     fd.append('theme', theme)
+    fd.append('accent_color', accentColor)
     fd.append('photo_width', photoWidth.toString())
     fd.append('prompt', prompt)
     fd.append('title', title || `${uc.label || docType} — ${new Date().toLocaleDateString()}`)
@@ -410,6 +412,27 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
             </div>
             {theme === 'original' && !resumeFile &&
               <p style={{ ...s.photoHint, color: '#e53e3e' }}>Upload a PDF to use the Original theme.</p>}
+          </div>
+
+          {/* Accent color picker */}
+          <div style={s.section}>
+            <label style={s.label}>Accent Color</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <input type="color" value={accentColor}
+                onChange={e => setAccentColor(e.target.value)}
+                style={{ width: 36, height: 36, border: 'none', borderRadius: 8, cursor: 'pointer', padding: 0 }} />
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {['#2b3a55', '#1a5c3a', '#8b2252', '#c47f17', '#4a1a8a', '#1a1a1a', '#6b4c3b'].map(c => (
+                  <button key={c} type="button"
+                    onClick={() => setAccentColor(c)}
+                    style={{
+                      width: 24, height: 24, borderRadius: '50%', border: accentColor === c ? '2px solid #333' : '2px solid #e2e8f0',
+                      background: c, cursor: 'pointer', padding: 0,
+                    }} />
+                ))}
+              </div>
+              <span style={{ fontSize: '11px', color: '#718096', fontFamily: 'monospace' }}>{accentColor}</span>
+            </div>
           </div>
 
           {/* Prompt */}
