@@ -16,6 +16,7 @@ const THEMES = [
   { id:'minimal',  label:'Minimal',  accent:'#111',    layout:'centered' },
   { id:'elegant',  label:'Elegant',  accent:'#7c3aed', layout:'banner' },
   { id:'blue',     label:'Blue',     accent:'#2b3a55', layout:'two-col' },
+  { id:'none',     label:'No Template', accent:'#555',  layout:'keep-original' },
   { id:'original', label:'Original', accent:'#888',    layout:'single-col' },
 ]
 
@@ -407,7 +408,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
               {THEMES.map(t => (
                 <ThemeChip key={t.id} theme={t} selected={theme === t.id}
                   onClick={() => setTheme(t.id)}
-                  disabled={t.id === 'original' && !resumeFile} />
+                  disabled={(t.id === 'original' || t.id === 'none') && !resumeFile} />
               ))}
             </div>
             {theme === 'original' && !resumeFile &&
