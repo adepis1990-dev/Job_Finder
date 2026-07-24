@@ -117,6 +117,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
   const [theme,    setTheme]        = useState('classic')
   const [accentColor, setAccentColor] = useState('#2b3a55')
   const [photoWidth, setPhotoWidth] = useState(1.0)
+  const [photoShape, setPhotoShape] = useState('round')
   const [prompt,   setPrompt]       = useState('')
   const [title,    setTitle]        = useState('')
   const [extraFields, setExtraFields] = useState({})
@@ -195,6 +196,7 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
     fd.append('theme', theme)
     fd.append('accent_color', accentColor)
     fd.append('photo_width', photoWidth.toString())
+    fd.append('photo_shape', photoShape)
     fd.append('prompt', prompt)
     fd.append('title', title || `${uc.label || docType} — ${new Date().toLocaleDateString()}`)
     fd.append('extra_fields', JSON.stringify(extraFields))
@@ -385,6 +387,23 @@ function MainApp({ authData, onLogout, onBack, initialView }) {
                 value={photoWidth} onChange={e => setPhotoWidth(parseFloat(e.target.value))}
                 style={s.slider} />
               <span style={s.sliderVal}>{photoWidth.toFixed(1)}"</span>
+            </div>
+            <div style={s.sliderRow}>
+              <span style={s.sliderLabel}>Photo shape</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {['round', 'square', 'rectangle'].map(shape => (
+                  <button key={shape} type="button"
+                    style={{
+                      padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                      cursor: 'pointer', border: photoShape === shape ? '2px solid #1a1a2e' : '1.5px solid #e2e8f0',
+                      background: photoShape === shape ? '#1a1a2e' : '#fff',
+                      color: photoShape === shape ? '#fff' : '#4a5568',
+                    }}
+                    onClick={() => setPhotoShape(shape)}>
+                    {shape.charAt(0).toUpperCase() + shape.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

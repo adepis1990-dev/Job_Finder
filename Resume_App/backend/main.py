@@ -443,7 +443,7 @@ def build_centered(doc, blocks, st, t, photo_path, photo_w):
     doc.build(story)
 
 # ── Blue layout (two-column executive style with icons + dark text) ────────────
-def build_blue(output_path, blocks, st, t, photo_path, photo_w):
+def build_blue(output_path, blocks, st, t, photo_path, photo_w, meta=None):
     """
     Executive two-column layout:
     - Left column: Photo, contact info, skills, languages
@@ -510,11 +510,48 @@ def build_blue(output_path, blocks, st, t, photo_path, photo_w):
 
     # Build left column
     left_story = []
+    photo_shape = meta.get("photo_shape", "round") if isinstance(meta, dict) else "round"
+    tmp_dir = os.path.dirname(output_path)  # Use same temp dir as output
+
     if photo_path:
         avail = LEFT_W - 2 * PAD
         pw, ph = photo_dims(photo_path, photo_w * inch, avail)
-        size = min(pw, ph, avail * 0.8)
-        img = RLImage(photo_path, width=size, height=size)
+
+        # Apply photo shape
+        if photo_shape == "round" or photo_shape == "square":
+            size = min(pw, ph, avail * 0.8)
+            # For round: crop to circle using PIL
+            if photo_shape == "round":
+                try:
+                    pil_img = PILImage.open(photo_path)
+                    pil_img.thumbnail((int(size * 72), int(size * 72)), PILImage.LANCZOS)
+                    # Create circular mask
+                    mask = PILImage.new("L", pil_img.size, 0)
+                    from PIL import ImageDraw
+                    draw = ImageDraw.Draw(mask)
+                    draw.ellipse((0, 0, pil_img.size[0], pil_img.size[1]), fill=255)
+                    # Apply mask
+                    output_img = PILImage.new("RGB", pil_img.size, (255, 255, 255))
+                    if pil_img.mode == "RGBA":
+                        output_img.paste(pil_img, mask=pil_img.split()[3])
+                    else:
+                        output_img.paste(pil_img)
+                    # Apply circular mask
+                    final = PILImage.new("RGB", pil_img.size, (255, 255, 255))
+                    final.paste(output_img, mask=mask)
+                    round_path = os.path.join(tmp_dir, "photo_round.jpg")
+                    final.save(round_path, "JPEG", quality=90)
+                    img = RLImage(round_path, width=size, height=size)
+                except Exception:
+                    img = RLImage(photo_path, width=size, height=size)
+            else:
+                img = RLImage(photo_path, width=size, height=size)
+        else:
+            # Rectangle: keep original aspect ratio
+            img_w = min(pw, avail * 0.9)
+            img_h = img_w * (ph / pw) if pw > 0 else img_w
+            img = RLImage(photo_path, width=img_w, height=img_h)
+
         ct = Table([[img]], colWidths=[avail])
         ct.setStyle(TableStyle([
             ("ALIGN", (0, 0), (-1, -1), "CENTER"),
@@ -667,7 +704,7 @@ def build_pdf(doc_obj: dict, output_path: str, photo_path: str | None = None,
         return
 
     if layout == "blue":
-        build_blue(output_path, blocks, st, t, photo_path, photo_width_in)
+        build_blue(output_path, blocks, st, t, photo_path, photo_width_in, meta=doc_obj.get("meta", {}))
         return
 
     rl_doc = SimpleDocTemplate(output_path, pagesize=letter,
@@ -814,6 +851,7 @@ async def generate(
     theme:       str   = Form("classic"),
     accent_color: str  = Form("#2b3a55"),
     photo_width: float = Form(1.0),
+    photo_shape: str   = Form("round"),
     prompt:      str   = Form(...),
     title:       str   = Form("Untitled"),
     doc_id:      str   = Form(None),
@@ -832,7 +870,7 @@ async def generate(
 
     is_edit = edit_mode.lower() == "true"
     extra   = json.loads(extra_fields) if extra_fields else {}
-    meta    = {"theme": theme, "tone": tone, "doc_type": doc_type, "photo_width": photo_width, "accent_color": accent_color}
+    meta    = {"theme": theme, "tone": tone, "doc_type": doc_type, "photo_width": photo_width, "accent_color": accent_color, "photo_shape": photo_shape}
 
     system_prompt = (uc[doc_type].get("edit_system_prompt", tone_cfg["system_prompt"])
                      if is_edit else tone_cfg["system_prompt"])
@@ -963,7 +1001,15 @@ async def generate(
                 with PILImage.open(photo_path) as img:
                     img.thumbnail((400, 400), PILImage.LANCZOS)
                     compressed_path = os.path.join(tmp_dir, "photo.jpg")
-                    img.convert("RGB").save(compressed_path, "JPEG", quality=80, optimize=True)
+                    # Handle transparency (PNG with alpha)
+                    if img.mode in ("RGBA", "P"):
+                        background = PILImage.new("RGB", img.size, (255, 255, 255))
+                        if img.mode == "P":
+                            img = img.convert("RGBA")
+                        background.paste(img, mask=img.split()[3])
+                        background.save(compressed_path, "JPEG", quality=80, optimize=True)
+                    else:
+                        img.convert("RGB").save(compressed_path, "JPEG", quality=80, optimize=True)
                     photo_path = compressed_path
             except Exception:
                 pass  # Keep original if compression fails

@@ -153,7 +153,11 @@ def spans_to_rl(spans: list[dict],
     """
     Convert a list of Span dicts to a ReportLab Paragraph XML string.
     Uses explicit <font> tags so bold works regardless of the base style's fontName.
+    Detects URLs and makes them clickable.
     """
+    import re as _re
+    URL_RE = _re.compile(r'(https?://[^\s,;]+)')
+
     parts = []
     for span in spans:
         text = _esc_xml(span["text"])
@@ -167,6 +171,22 @@ def spans_to_rl(spans: list[dict],
             font = italic_font
         else:
             font = base_font
+
+        # Make URLs clickable
+        def _linkify(t):
+            result = []
+            last = 0
+            for m in URL_RE.finditer(t):
+                if m.start() > last:
+                    result.append(t[last:m.start()])
+                url = m.group(1)
+                result.append(f'<a href="{url}" color="blue">{url}</a>')
+                last = m.end()
+            result.append(t[last:])
+            return "".join(result)
+
+        text = _linkify(text)
+
         if font != base_font or b or i:
             parts.append(f'<font name="{font}">{text}</font>')
         else:
