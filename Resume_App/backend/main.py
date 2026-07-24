@@ -847,35 +847,11 @@ async def generate(
     tmp_dir   = tempfile.mkdtemp()
 
     try:
-        # ── Determine base document object ────────────────────────────────────
-        base_doc: dict | None = None
-
-        if is_edit and doc_id:
-            existing = db.get_document(doc_id)
-            if existing:
-                # Prefer stored JSON; fall back to re-parsing stored plain text
-                raw_json = existing.get("content_json")
-                if raw_json:
-                    base_doc = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
-                    base_doc["meta"] = meta   # apply current theme/tone
-                elif existing.get("content"):
-                    base_doc = text_to_doc(existing["content"], meta)
-
-        elif file and file.filename:
+        # ── Read uploaded file first (needed for "No Template" mode) ──────────
+        if file and file.filename:
             pdf_bytes = await file.read()
-            extracted = ""
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                for page in pdf.pages:
-                    pt = page.extract_text()
-                    if pt:
-                        extracted += pt + "\n"
-            if extracted.strip():
-                user_parts.append(f"Source document:\n{extracted}")
 
-        user_parts.append(f"Edit instruction: {prompt}" if is_edit else f"Instructions: {prompt}")
-        user_content = "\n\n".join(user_parts)
-
-        # ── "No Template" mode: keep original PDF as-is ────────────────────────
+        # ── "No Template" mode: keep original PDF as-is ──────────────────────
         if theme == "none" and pdf_bytes:
             # Just save the original PDF without any modifications
             out_path = os.path.join(tmp_dir, "output.pdf")
@@ -921,6 +897,34 @@ async def generate(
             resp = FileResponse(out_path, media_type="application/pdf", filename=fname)
             resp.headers["X-Document-Id"] = saved["id"]
             return resp
+
+        # ── Normal flow: determine base document ──────────────────────────────
+        base_doc: dict | None = None
+
+        if is_edit and doc_id:
+            existing = db.get_document(doc_id)
+            if existing:
+                # Prefer stored JSON; fall back to re-parsing stored plain text
+                raw_json = existing.get("content_json")
+                if raw_json:
+                    base_doc = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
+                    base_doc["meta"] = meta   # apply current theme/tone
+                elif existing.get("content"):
+                    base_doc = text_to_doc(existing["content"], meta)
+
+        elif file and file.filename:
+            pdf_bytes = await file.read()
+            extracted = ""
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                for page in pdf.pages:
+                    pt = page.extract_text()
+                    if pt:
+                        extracted += pt + "\n"
+            if extracted.strip():
+                user_parts.append(f"Source document:\n{extracted}")
+
+        user_parts.append(f"Edit instruction: {prompt}" if is_edit else f"Instructions: {prompt}")
+        user_content = "\n\n".join(user_parts)
 
         # ── Apply edit or generate fresh ──────────────────────────────────────
         doc_obj: dict | None = None
