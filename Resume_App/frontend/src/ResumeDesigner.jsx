@@ -270,12 +270,17 @@ export default function ResumeDesigner({ onBack }) {
       e.on('component:add', (component) => {
         component.set({
           resizable: {
-            tl: 0, tr: 0, bl: 0, br: 0,  // no corner resize
-            tc: 0, bc: 1,  // bottom-center only (height)
-            cl: 1, cr: 1,  // left and right (width)
+            tl: 1, tr: 1, bl: 1, br: 1,
+            tc: 1, bc: 1, cl: 1, cr: 1,
           },
           draggable: true,
+          stylable: true,
         })
+        // Set absolute positioning for free movement
+        const currentStyle = component.getStyle() || {}
+        if (!currentStyle.position) {
+          component.addStyle({ position: 'absolute' })
+        }
       })
 
       // Also apply to existing components
@@ -289,6 +294,12 @@ export default function ResumeDesigner({ onBack }) {
         })
         comp.components().forEach(applyResizable)
       })
+
+      // Make the root wrapper position: relative so absolutes work inside it
+      const wrapper = e.getWrapper()
+      if (wrapper) {
+        wrapper.addStyle({ position: 'relative', 'min-height': '297mm' })
+      }
     }
 
     return () => {
