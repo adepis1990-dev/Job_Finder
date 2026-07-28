@@ -101,6 +101,27 @@ function ReportingIcon() {
   )
 }
 
+function DesignerIcon() {
+  return (
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+      {/* Artboard/canvas */}
+      <rect x="8" y="8" width="32" height="32" rx="3" fill="#fef3e8" stroke="#d97706" strokeWidth="1.5" />
+      {/* Layout grid lines */}
+      <rect x="12" y="12" width="12" height="4" rx="1" fill="#d97706" opacity="0.7" />
+      <rect x="12" y="18" width="24" height="2" rx="1" fill="#f6d8a8" />
+      <rect x="12" y="22" width="24" height="2" rx="1" fill="#f6d8a8" />
+      <rect x="12" y="26" width="18" height="2" rx="1" fill="#f6d8a8" />
+      {/* Pen/design tool */}
+      <path d="M32 28 L38 22 L40 24 L34 30 Z" fill="#d97706" />
+      <path d="M34 30 L32 32 L32 30" fill="#d97706" opacity="0.6" />
+      {/* Color dots */}
+      <circle cx="14" cy="34" r="2.5" fill="#ef4444" />
+      <circle cx="20" cy="34" r="2.5" fill="#3b82f6" />
+      <circle cx="26" cy="34" r="2.5" fill="#10b981" />
+    </svg>
+  )
+}
+
 const SERVICES = [
   {
     id: 'resume-ai',
@@ -111,6 +132,17 @@ const SERVICES = [
     color: '#4a9e6e',
     bgColor: '#f0faf4',
     borderColor: '#c6f0d5',
+    active: true,
+  },
+  {
+    id: 'resume-designer',
+    title: 'Resume Designer',
+    description: 'Visual template editor with live preview — design and export as PDF',
+    icon: DesignerIcon,
+    level: 1,
+    color: '#d97706',
+    bgColor: '#fefbf3',
+    borderColor: '#fde68a',
     active: true,
   },
   {

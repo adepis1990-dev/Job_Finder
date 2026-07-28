@@ -4,6 +4,7 @@ import Navbar from './Navbar'
 import Dashboard from './Dashboard'
 import AboutPage from './AboutPage'
 import ContactPage from './ContactPage'
+import ResumeDesigner from './ResumeDesigner'
 import EmailPreview from './EmailPreview'
 import ScraperPanel from './ScraperPanel'
 
@@ -90,6 +91,9 @@ export default function App() {
       )}
       {currentView === 'about' && <AboutPage />}
       {currentView === 'contact' && <ContactPage />}
+      {currentView === 'resume-designer' && (
+        <ResumeDesigner onBack={() => setCurrentView('dashboard')} />
+      )}
       {currentView === 'resume-ai' && (
         <MainApp
           authData={authData}
