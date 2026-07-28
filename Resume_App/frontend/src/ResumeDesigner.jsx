@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import grapesjs from 'grapesjs'
 import 'grapesjs/dist/css/grapes.min.css'
+import gjsPresetWebpage from 'grapesjs-preset-webpage'
 
 // Resume-specific blocks for the editor
 const RESUME_BLOCKS = [
@@ -171,10 +172,41 @@ export default function ResumeDesigner({ onBack }) {
         width: 'auto',
         fromElement: false,
         storageManager: false,
-        panels: { defaults: [] },
+        plugins: [gjsPresetWebpage],
+        pluginsOpts: {
+          [gjsPresetWebpage]: {
+            blocksBasicOpts: { flexGrid: true },
+            blocks: ['column1', 'column2', 'column3', 'column3-7', 'text', 'link', 'image', 'video'],
+          },
+        },
         canvas: {
           styles: [
             'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap',
+          ],
+        },
+        styleManager: {
+          appendTo: '.styles-container',
+          sectors: [
+            {
+              name: 'General',
+              open: true,
+              buildProps: ['width', 'min-height', 'padding', 'margin'],
+            },
+            {
+              name: 'Colors',
+              open: true,
+              buildProps: ['background-color', 'color'],
+            },
+            {
+              name: 'Typography',
+              open: true,
+              buildProps: ['font-family', 'font-size', 'font-weight', 'letter-spacing', 'line-height', 'text-align'],
+            },
+            {
+              name: 'Borders',
+              open: false,
+              buildProps: ['border-radius', 'border'],
+            },
           ],
         },
         deviceManager: {
@@ -187,11 +219,12 @@ export default function ResumeDesigner({ onBack }) {
             <div style="padding: 28px 32px; border-bottom: 2px solid #1a1a2e; margin-bottom: 16px;">
               <h1 style="font-size: 28px; font-weight: 700; margin: 0 0 4px; color: #1a1a2e;">Your Name</h1>
               <p style="font-size: 14px; color: #4a5568; margin: 0 0 8px;">Job Title</p>
-              <p style="font-size: 11px; color: #718096; margin: 0;">email@example.com · +40 700 000 000 · City · <a href="#" style="color: #2563eb;">LinkedIn</a></p>
+              <p style="font-size: 11px; color: #718096; margin: 0;">email@example.com · +40 700 000 000 · City · <a href="https://linkedin.com" style="color: #2563eb;">LinkedIn</a></p>
             </div>
           </div>
         `,
         blockManager: {
+          appendTo: '.blocks-container',
           blocks: RESUME_BLOCKS,
         },
       })
@@ -256,9 +289,22 @@ export default function ResumeDesigner({ onBack }) {
         <button style={s.exportBtn} onClick={handleExport}>📥 Export PDF</button>
       </div>
 
-      {/* GrapesJS Editor */}
-      <div style={s.editorContainer}>
-        <div ref={editorRef} style={s.grapesEditor}></div>
+      {/* Editor layout: left blocks panel + canvas + right styles panel */}
+      <div style={s.editorLayout}>
+        {/* Left panel: Blocks to drag */}
+        <div style={s.leftPanel}>
+          <div className="blocks-container"></div>
+        </div>
+
+        {/* Center: GrapesJS Canvas */}
+        <div style={s.canvasContainer}>
+          <div ref={editorRef} style={s.grapesEditor}></div>
+        </div>
+
+        {/* Right panel: Style manager */}
+        <div style={s.rightPanel}>
+          <div className="styles-container"></div>
+        </div>
       </div>
     </div>
   )
@@ -266,10 +312,13 @@ export default function ResumeDesigner({ onBack }) {
 
 const s = {
   page: { height: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
-  toolbar: { display: 'flex', alignItems: 'center', padding: '8px 20px', background: '#1a1a2e', gap: '14px', flexShrink: 0 },
+  toolbar: { display: 'flex', alignItems: 'center', padding: '8px 20px', background: '#1a1a2e', gap: '14px', flexShrink: 0, zIndex: 10 },
   backBtn: { padding: '6px 14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'none', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer' },
   toolbarTitle: { color: '#fff', fontSize: '15px', fontWeight: 700, margin: 0, flex: 1 },
   exportBtn: { padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#d97706', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' },
-  editorContainer: { flex: 1, overflow: 'hidden' },
+  editorLayout: { flex: 1, display: 'flex', overflow: 'hidden' },
+  leftPanel: { width: '220px', background: '#2d2d2d', overflowY: 'auto', flexShrink: 0, color: '#fff', fontSize: '12px' },
+  canvasContainer: { flex: 1, overflow: 'hidden' },
   grapesEditor: { height: '100%', width: '100%' },
+  rightPanel: { width: '240px', background: '#363636', overflowY: 'auto', flexShrink: 0, color: '#fff', fontSize: '12px' },
 }
