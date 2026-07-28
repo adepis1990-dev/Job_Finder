@@ -265,6 +265,30 @@ export default function ResumeDesigner({ onBack }) {
       })
 
       setEditor(e)
+
+      // Make all components resizable and draggable
+      e.on('component:add', (component) => {
+        component.set({
+          resizable: {
+            tl: 0, tr: 0, bl: 0, br: 0,  // no corner resize
+            tc: 0, bc: 1,  // bottom-center only (height)
+            cl: 1, cr: 1,  // left and right (width)
+          },
+          draggable: true,
+        })
+      })
+
+      // Also apply to existing components
+      e.getComponents().forEach(function applyResizable(comp) {
+        comp.set({
+          resizable: {
+            tl: 1, tr: 1, bl: 1, br: 1,
+            tc: 1, bc: 1, cl: 1, cr: 1,
+          },
+          draggable: true,
+        })
+        comp.components().forEach(applyResizable)
+      })
     }
 
     return () => {
