@@ -163,6 +163,13 @@ const RESUME_BLOCKS = [
 export default function ResumeDesigner({ onBack }) {
   const editorRef = useRef(null)
   const [editor, setEditor] = useState(null)
+  const [drawMode, setDrawMode] = useState(null) // null, 'pen', 'line', 'eraser'
+  const [drawColor, setDrawColor] = useState('#1a1a2e')
+  const [drawWidth, setDrawWidth] = useState(2)
+  const canvasRef = useRef(null)
+  const isDrawing = useRef(false)
+  const lastPos = useRef({ x: 0, y: 0 })
+  const lineStart = useRef(null)
 
   useEffect(() => {
     if (editorRef.current && !editor) {
@@ -396,6 +403,32 @@ export default function ResumeDesigner({ onBack }) {
       <div style={s.toolbar}>
         <button style={s.backBtn} onClick={onBack}>← Back</button>
         <h2 style={s.toolbarTitle}>Resume Designer</h2>
+
+        {/* Draw tools */}
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginRight: 12 }}>
+          <button style={{ ...s.drawBtn, ...(drawMode === 'pen' ? s.drawBtnActive : {}) }}
+            onClick={() => setDrawMode(drawMode === 'pen' ? null : 'pen')} title="Freehand draw">
+            ✏️
+          </button>
+          <button style={{ ...s.drawBtn, ...(drawMode === 'line' ? s.drawBtnActive : {}) }}
+            onClick={() => setDrawMode(drawMode === 'line' ? null : 'line')} title="Straight line">
+            📏
+          </button>
+          <button style={{ ...s.drawBtn, ...(drawMode === 'eraser' ? s.drawBtnActive : {}) }}
+            onClick={() => setDrawMode(drawMode === 'eraser' ? null : 'eraser')} title="Eraser">
+            🧹
+          </button>
+          <button style={s.drawBtn}
+            onClick={() => { const c = canvasRef.current; if (c) { const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height) } }}
+            title="Clear all drawings">
+            🗑️
+          </button>
+          <input type="color" value={drawColor} onChange={e => setDrawColor(e.target.value)}
+            style={{ width: 24, height: 24, border: 'none', borderRadius: 4, cursor: 'pointer' }} title="Draw color" />
+          <input type="range" min="1" max="8" value={drawWidth} onChange={e => setDrawWidth(parseInt(e.target.value))}
+            style={{ width: 50, cursor: 'pointer' }} title="Line width" />
+        </div>
+
         <button style={s.exportBtn} onClick={handleExport}>📥 Export PDF</button>
       </div>
 
@@ -406,9 +439,64 @@ export default function ResumeDesigner({ onBack }) {
           <div className="blocks-container"></div>
         </div>
 
-        {/* Center: GrapesJS Canvas */}
+        {/* Center: GrapesJS Canvas + Drawing overlay */}
         <div style={s.canvasContainer}>
           <div ref={editorRef} style={s.grapesEditor}></div>
+          {drawMode && (
+            <canvas
+              ref={canvasRef}
+              width={794} height={1123}
+              style={s.drawCanvas}
+              onMouseDown={(e) => {
+                isDrawing.current = true
+                const rect = e.target.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const y = e.clientY - rect.top
+                lastPos.current = { x, y }
+                if (drawMode === 'line') {
+                  lineStart.current = { x, y }
+                }
+              }}
+              onMouseMove={(e) => {
+                if (!isDrawing.current) return
+                const rect = e.target.getBoundingClientRect()
+                const x = e.clientX - rect.left
+                const y = e.clientY - rect.top
+                const ctx = canvasRef.current.getContext('2d')
+
+                if (drawMode === 'pen') {
+                  ctx.beginPath()
+                  ctx.moveTo(lastPos.current.x, lastPos.current.y)
+                  ctx.lineTo(x, y)
+                  ctx.strokeStyle = drawColor
+                  ctx.lineWidth = drawWidth
+                  ctx.lineCap = 'round'
+                  ctx.stroke()
+                  lastPos.current = { x, y }
+                } else if (drawMode === 'eraser') {
+                  ctx.clearRect(x - 10, y - 10, 20, 20)
+                }
+              }}
+              onMouseUp={(e) => {
+                if (drawMode === 'line' && lineStart.current) {
+                  const rect = e.target.getBoundingClientRect()
+                  const x = e.clientX - rect.left
+                  const y = e.clientY - rect.top
+                  const ctx = canvasRef.current.getContext('2d')
+                  ctx.beginPath()
+                  ctx.moveTo(lineStart.current.x, lineStart.current.y)
+                  ctx.lineTo(x, y)
+                  ctx.strokeStyle = drawColor
+                  ctx.lineWidth = drawWidth
+                  ctx.lineCap = 'round'
+                  ctx.stroke()
+                  lineStart.current = null
+                }
+                isDrawing.current = false
+              }}
+              onMouseLeave={() => { isDrawing.current = false }}
+            />
+          )}
         </div>
 
         {/* Right panel: Style manager */}
@@ -428,7 +516,10 @@ const s = {
   exportBtn: { padding: '8px 16px', borderRadius: '6px', border: 'none', background: '#d97706', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' },
   editorLayout: { flex: 1, display: 'flex', overflow: 'hidden' },
   leftPanel: { width: '220px', background: '#2d2d2d', overflowY: 'auto', flexShrink: 0, color: '#fff', fontSize: '12px' },
-  canvasContainer: { flex: 1, overflow: 'hidden' },
+  canvasContainer: { flex: 1, overflow: 'hidden', position: 'relative' },
   grapesEditor: { height: '100%', width: '100%' },
+  drawCanvas: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10, cursor: 'crosshair' },
+  drawBtn: { padding: '4px 8px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.2)', background: 'none', color: '#fff', fontSize: 14, cursor: 'pointer' },
+  drawBtnActive: { background: '#d97706', borderColor: '#d97706' },
   rightPanel: { width: '240px', background: '#363636', overflowY: 'auto', flexShrink: 0, color: '#fff', fontSize: '12px' },
 }
