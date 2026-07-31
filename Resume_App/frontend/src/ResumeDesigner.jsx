@@ -298,8 +298,20 @@ export default function ResumeDesigner({ onBack }) {
       // Make the root wrapper position: relative so absolutes work inside it
       const wrapper = e.getWrapper()
       if (wrapper) {
-        wrapper.addStyle({ position: 'relative', 'min-height': '297mm' })
+        wrapper.addStyle({ position: 'relative', 'min-height': '297mm', overflow: 'visible' })
       }
+
+      // Enable position tracking on drag for truly free movement
+      e.on('component:drag:end', (dataTransfer, model) => {
+        // After drag ends, ensure the component uses absolute with proper left/top
+      })
+
+      // Add position properties to style manager
+      e.StyleManager.addSector('position', {
+        name: 'Position',
+        open: true,
+        buildProps: ['position', 'top', 'right', 'bottom', 'left'],
+      }, { at: 0 })
     }
 
     return () => {
